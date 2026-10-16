@@ -61,13 +61,15 @@ await t('準備: every row that is not ok has a fix or a next step, whatever sta
     rows++;
     ok(c.ok === true || c.fix || c.next, `${name}: ${c.key} is not ok and has neither a fix nor a next step`);
     if (c.fix?.link) ok(/^https:\/\/(github\.com|api\.github\.com)\//.test(c.fix.link), `${name}: ${c.key} links outside GitHub: ${c.fix.link}`);
+    if (c.fix?.help?.link) ok(/^https:\/\/dash\.cloudflare\.com\/profile\/api-tokens\?/.test(c.fix.help.link), `${name}: ${c.key} help links somewhere else: ${c.fix.help.link}`);
     ok(c.ok === true || c.need, `${name}: ${c.key} says nothing of what is missing`);
   }
   ok(rows > 30, `rows looked at: ${rows}`);
   const c = Object.fromEntries((await S.checks(cases['nothing there'].ctx)).map((x) => [x.key, x]));
   ok(c.installed.next.goto === 'app' && c['host:x/host'].next.goto === 'app' && c.deploy.fix.link === 'https://github.com/o/lab', 'the rows that wait for the App point to the App row');
   const w = Object.fromEntries((await S.checks({ ...cases['nothing there'].ctx, lab: LAB({ workflows: [{ path: '.github/workflows/auth-deploy.yml' }] }) })).map((x) => [x.key, x]));
-  ok(w.deploy.fix === null && w.deploy.next.goto === 'app', JSON.stringify(w.deploy));
+  // (Cloudflare's token asked before the App too: its address goes into the App's Callback URL)
+  ok(w.deploy.fix.inputs.map((i) => i.name).join() === 'token' && /^https:\/\/dash\.cloudflare\.com\/profile\/api-tokens\?/.test(w.deploy.fix.help.link), JSON.stringify(w.deploy));
   const d = Object.fromEntries((await S.checks(cases['App known, no auth-deploy.yml, no secrets'].ctx)).map((x) => [x.key, x]));
   ok(d.deploy.fix.link === 'https://github.com/o/lab' && /Sync fork/.test(d.deploy.need), JSON.stringify(d.deploy));
 });

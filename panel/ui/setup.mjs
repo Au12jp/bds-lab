@@ -50,18 +50,22 @@ function autoCard(ctx, draw) {
   const go = h('button', { class: 'primary', onclick: async () => {
     go.disabled = true;
     try {
-      autoSet(ctx, { stage: 'go', installed: Boolean(autoGet(ctx)?.installed) || Boolean(lastInstalled.get(ctx.lab.slug)) });
+      autoSet(ctx, { stage: 'go', installed: Boolean(autoGet(ctx)?.installed) || instGet(ctx) });
       await autoRun(ctx, draw);
     } finally { go.disabled = false; }
   } }, '全自動で準備する');
   return h('div', { class: 'card' }, h('h3', {}, '⚡ 全自動で準備する'),
-    h('p', { class: 'muted' }, '入力は何も要りません。押すと、パネルができることを上から順に全部やります。入力が要るもの（「GitHub でサインイン」用のサービス）は飛ばし、今と同じトークンで入れるままにします。あなたが押すのは GitHub の画面の「Create GitHub App」と「Install」だけで、戻ってくると続きを自動でやります。'),
+    h('p', { class: 'muted' }, '入力は何も要りません。押すと、パネルができることを上から順に全部やります。あなたが押すのは GitHub の画面の「Create GitHub App」と「Install」だけで、戻ってくると続きを自動でやります。「GitHub でサインイン」も使うなら、下の「「GitHub でサインイン」」の行のリンクで Cloudflare のトークンを作って 1 回貼るだけ（あとは全部自動。先に貼っておけば、このボタン 1 回でそこまでやります）。'),
     h('div', { class: 'row' }, go), say);
 }
 /** one step after another until GitHub needs the person (it leaves the page), it is truly done, or it stops and says why;
  *  at most 12 steps a visit */
 let autoBusy = false;
-const lastInstalled = new Map();
+// (that this tab went to install the App on this lab: kept in the tab — a token's sign-in never sees installations, so a run
+// started again does not send the person to install it once more)
+const instKey = (ctx) => `bdslab.setup.installed.${ctx.lab.slug}`;
+const instGet = (ctx) => { try { return (ctx.storage ?? globalThis.sessionStorage).getItem(instKey(ctx)) === '1'; } catch { return false; } };
+const instSet = (ctx, on) => { try { const st = ctx.storage ?? globalThis.sessionStorage; if (on) st.setItem(instKey(ctx), '1'); else st.removeItem(instKey(ctx)); } catch { /* this tab only */ } };
 async function autoRun(ctx, draw) {
   // (one run at a time: the tab drawn again while one goes on — after the App's keys are kept — does not start a second)
   if (autoBusy) return;
@@ -75,7 +79,7 @@ async function autoSteps(ctx0, draw0) {
   for (let i = 0; i < 12; i++) {
     const { ctx, draw } = cur();
     const a = autoGet(ctx); if (!a) return;
-    if (a.installed) lastInstalled.set(ctx.lab.slug, true);
+    if (a.installed) instSet(ctx, true);
     // (the page told to learn the service's address: wait until it has (config.json) and the service answers, then load the
     // page again — the address goes into the page's CSP, which only a new load takes)
     if (a.stage === 'wait-live' && !ctx.config?.authUrl) {
@@ -88,7 +92,7 @@ async function autoSteps(ctx0, draw0) {
     }
     const cs = await draw();
     if (!cs) return halt('準備の様子を読めませんでした: 上の「もう一度」から');
-    const next = S.autoNext(cs, { installed: Boolean(a.installed) });
+    const next = S.autoNext(cs, { installed: Boolean(a.installed), planned: a.planned ?? null });
     if (next.kind === 'run') {
       const c = cs.find((x) => x.key === next.key), no = notAllowed(ctx, c.fix);
       if (no) return halt(`${c.label} — ${no}`);
@@ -103,12 +107,22 @@ async function autoSteps(ctx0, draw0) {
       }
       continue;
     }
+    if (next.kind === 'plan') {
+      const no = notAllowed(ctx, { needs: ['dispatch'] });
+      if (no) return halt(`Cloudflare を確かめられません — ${no}`);
+      const url = await act(() => S.planAuth(ctx.api, ctx.lab.slug, { ref: ctx.lab.repo?.default_branch ?? 'main', me: ctx.me?.login, onStep: (t) => say(t), ...(ctx.wait ?? {}) }));
+      if (url === undefined) return halt('Cloudflare を確かめられませんでした（上の知らせに理由）。直してから、もう一度「全自動で準備する」');
+      autoSet(ctx, { ...a, planned: url });
+      continue;
+    }
     if (next.kind === 'app') {
       const no = notAllowed(ctx, { needs: S.APP_NEEDS });
       if (no) return halt(`App を作れません — ${no}`);
-      say('GitHub の画面へ: 「Create GitHub App」を押してください（戻ってくると続きます）');
-      autoSet(ctx, { ...a, stage: 'app' });
-      const f = appForm(ctx);
+      say(next.remake ? 'GitHub の画面へ: Callback URL 入りの App を作ります。「Create GitHub App」を押してください（戻ってくると続きます）' : 'GitHub の画面へ: 「Create GitHub App」を押してください（戻ってくると続きます）');
+      // (a new App is installed anew: the way there again)
+      if (next.remake) instSet(ctx, false);
+      autoSet(ctx, { ...a, stage: 'app', ...(next.remake ? { installed: false } : {}) });
+      const f = appForm(ctx, { remake: Boolean(next.remake), planned: a.planned ?? null });
       if (f.tagName !== 'FORM') return halt(f.textContent);
       f.hidden = true; globalThis.document.body.append(f);
       // (requestSubmit: the form's own submit — its state kept for the way back — then to GitHub)
@@ -129,7 +143,7 @@ async function autoSteps(ctx0, draw0) {
       return halt(`${c?.label ?? next.key} — ${next.why}`, next.link ? [h('div', { class: 'row' }, link(next.link, next.linkLabel ?? 'GitHub へ'))] : []);
     }
     // (done: every row ✅ — said only now)
-    autoSet(ctx, null); lastInstalled.delete(ctx.lab.slug);
+    autoSet(ctx, null);
     return say(next.skipped?.length ? `✅ 準備はすべて終わりました（入力が要るので飛ばしたもの: ${next.skipped.join('・')}。今と同じトークンで入れます）` : '✅ 準備はすべて終わりました（全部の行が ✅）');
   }
   halt('同じことを 12 回繰り返したので止めました: 下の ⚠️ の行を見てください');
@@ -172,20 +186,34 @@ function fixOf(ctx, c) {
     if (msg === undefined) return;
     toast(msg); step.replaceChildren(msg);
     ctx.record?.(`setup.${c.key.split(':')[0]}`, {});
+    // (a paste that starts the rest: 「全自動で準備する」 goes on from here by itself — put in place: wait for the page and the
+    // service; only stored: the App made with the service's address, then put in place)
+    if (f.auto) {
+      const want = S.cleanAuthUrl((/https:\/\/[A-Za-z0-9.-]+/.exec(msg) ?? [])[0]);
+      const app = (await S.checks(ctx).catch(() => [])).find((x) => x.key === 'app');
+      autoSet(ctx, want ? { stage: 'wait-live', want, installed: Boolean(app?.ok) } : { stage: 'go', installed: Boolean(autoGet(ctx)?.installed) });
+      return autoRun(live?.ctx ?? ctx, live?.draw ?? (async () => undefined));
+    }
     ctx.reload?.();
   } }, f.label);
-  return h('div', {}, fields.map(([i, el]) => [h('label', {}, i.label), el]), h('div', { class: 'row' }, btn), step);
+  // (a link to where the value is made — Cloudflare's token page — above the field; another way folded below)
+  const help = f.help?.link ? h('div', { class: 'row' }, link(f.help.link, f.help.label)) : null;
+  const alt = f.alt ? h('details', {}, h('summary', {}, '自分のサーバーに置いたとき'), fixOf(ctx, { ...c, fix: f.alt })) : null;
+  return h('div', {}, help, fields.map(([i, el]) => [h('label', {}, i.label), el]), h('div', { class: 'row' }, btn), step, alt);
 }
 
 /** the App's form: posted to GitHub with its manifest; the state it carries kept in this tab to know the way back */
-function appForm(ctx) {
+function appForm(ctx, { remake = false, planned = null } = {}) {
   const owner = ctx.lab.repo?.owner?.login ?? ctx.lab.slug.split('/')[0], isOrg = ctx.lab.repo?.owner?.type === 'Organization', state = S.newState();
-  const manifest = S.appManifest({ owner, repo: ctx.lab.slug.split('/')[1], panelUrl: ctx.panelUrl, authUrl: ctx.config?.authUrl });
+  // (the service's address when it is known — put in place, or planned from Cloudflare — so the App's Callback URL is right
+  // from the start; an App made again takes a short suffix, its old name being taken)
+  const manifest = S.appManifest({ owner, repo: ctx.lab.slug.split('/')[1], panelUrl: ctx.panelUrl, authUrl: ctx.config?.authUrl ?? planned ?? autoGet(ctx)?.planned ?? null, suffix: remake ? state.slice(0, 4) : '' });
+  const callback = manifest.callback_urls[0] ?? null;
   const store = ctx.storage ?? globalThis.sessionStorage;
   // (what GitHub would refuse, said here before going: never its 「Invalid GitHub App configuration」 page)
   const bad = S.manifestProblems(manifest);
   if (bad.length) return h('div', { class: 'bad', role: 'alert' }, `App の設定に GitHub が受け付けないものがあります: ${bad.join('・')}。パネルの不具合です: この文を写して作者に知らせてください`);
-  return h('form', { method: 'post', action: S.manifestAction(owner, isOrg, state), onsubmit: () => store.setItem(STATE_KEY, JSON.stringify({ state, lab: ctx.lab.slug, owner, isOrg, at: Date.now() })) },
+  return h('form', { method: 'post', action: S.manifestAction(owner, isOrg, state), onsubmit: () => store.setItem(STATE_KEY, JSON.stringify({ state, lab: ctx.lab.slug, owner, isOrg, callback, at: Date.now() })) },
     h('input', { type: 'hidden', name: 'manifest', value: JSON.stringify(manifest) }),
     h('p', { class: 'muted' }, isOrg ? `組織 ${owner} の App として作ります（組織の管理者だけが作れます）。` : `あなた（${ctx.me?.login ?? owner}）のアカウントの App として作ります。`,
       `名前「${manifest.name}」は GitHub の画面で変えられます。権限: ${Object.entries(S.APP_PERMISSIONS).map(([k, v]) => `${k}=${v}`).join(' ')}`),
@@ -205,7 +233,7 @@ export function takeAppReturn({ location: loc = globalThis.location, history: hi
   // (out of the address at once: not in the history, a bookmark or a shared link)
   hist.replaceState(null, '', `${loc.pathname}#setup`);
   if (!got || !(Date.now() - Number(saved?.at) < 3_600_000)) return { error: '戻ってきた App の code は、このタブで始めたものではないか古いので使いません（もう一度「App を作る」から）' };
-  return { code: got.code, lab: saved.lab, owner: /^[A-Za-z0-9-]{1,39}$/.test(String(saved.owner ?? '')) ? saved.owner : null, isOrg: saved.isOrg === true };
+  return { code: got.code, lab: saved.lab, owner: /^[A-Za-z0-9-]{1,39}$/.test(String(saved.owner ?? '')) ? saved.owner : null, isOrg: saved.isOrg === true, callback: typeof saved.callback === 'string' ? saved.callback : null };
 }
 
 /** the way back used (once): this lab, its administrator and the policy looked at first — the code is turned into the App's
@@ -222,7 +250,7 @@ async function comeBack(ctx, box) {
       link(S.appsUrl(ret.owner, ret.isOrg), 'App の設定（GitHub へ）'));
   }
   box.replaceChildren(h('p', { class: 'muted' }, 'GitHub から App の鍵を受け取り、ラボの秘密に封じています…'));
-  const r = await act(async () => S.storeApp(ctx.api, ctx.lab.slug, await ctx.api.appFromManifest(ret.code)));
+  const r = await act(async () => S.storeApp(ctx.api, ctx.lab.slug, await ctx.api.appFromManifest(ret.code), { callback: ret.callback ?? null }));
   if (!r) return box.replaceChildren(h('p', { class: 'bad' }, 'App を入れられませんでした（上の知らせに理由があります）。GitHub に App ができているかもしれません: 下のリンクで見て、あれば鍵を作り直して「秘密」に入れるか、消してもう一度「App を作る」から。'), link(S.appsUrl(ret.owner, ret.isOrg), 'App の設定（GitHub へ）'));
   box.replaceChildren(h('p', { class: 'ok' }, `✅ App ${r.slug} を作り、秘密 ${r.secrets.join('・')} と変数 ${r.variables.join('・')} を入れました。次は「App を入れる」です。`), r.url ? link(r.url, 'App のページ（GitHub）') : null);
   ctx.record?.('setup.app', { app: r.slug });

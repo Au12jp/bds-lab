@@ -8,6 +8,12 @@
 - **入力は何も要らない**: カードから Cloudflare などの欄をなくし、ボタン 1 つで Pages → App → インストールまでやって ✅ で終わる。
   入力が要るもの（「GitHub でサインイン」用のサービス・Callback URL）は飛ばし、終わりの文で「飛ばしたもの」として名前を出す（今と同じトークンで入れる）。
   Cloudflare の鍵がもう入っていれば、サービスもパネルが置く（何も聞かない）。
+- **「GitHub でサインイン」も貼る 1 回だけ**: 「準備」の Cloudflare の行に、権限を選び済みの Cloudflare のトークン作成ページへのリンク
+  （`cfTokenUrl`: Workers Scripts の編集・Account Settings の読み取り）と欄 1 つ。アカウント ID の欄はなくし、auth-deploy.yml が
+  トークンからアカウントを見つけ、workers.dev の名前が無ければ作る。貼ると、置く → ページへの反映 → 完了まで自動で続く。
+  App より先に貼れば、サービスの URL を先に決め（auth-deploy.yml の `plan`）、Callback URL 入りで App を作る。
+- **Callback URL を貼らない**: App を作ったときの Callback URL を変数 `APP_CALLBACK_URL` に残し、合っていれば ✅。違えば、その URL 入りで
+  App を作り直す（GitHub の「Create GitHub App」「Install」だけ）。サービスの ⚠️ の 2 行は 1 行に（自分のサーバーの URL は折りたたみに）。
 - **それ以外は全部 ✅ になるまで「終わりました」と言わない**（`lib/setup.mjs` の `autoNext`）。直せない行に当たったら ⛔ で止めて、理由とリンクを出す。
 - サービスを置いたあと、ページ（config.json）がその URL を知り、サービスが `/health` で ok と答えるまで待ってから読み直して続ける（`waitLive`）。
 - auth-deploy.yml: App の id・秘密が欠けていれば置かない。Cloudflare の断り（workers.dev の名前・トークン・アカウント ID）を日本語で `::error`、パネルはそれをそのまま見せる。置いたあと `/health` を確かめてから URL を渡す。

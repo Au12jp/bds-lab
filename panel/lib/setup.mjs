@@ -34,10 +34,12 @@ const strip = (u) => String(u ?? '').replace(/#.*$/, '');
  *  webhook (GitHub still wants its url: the panel's, never called — active: false), no events; the ways back are the
  *  panel's address with no #fragment (GitHub refuses one: 「redirect_url must be a valid URL」 — the page opens 「準備」 itself); its user sign-in comes back to the sign-in service (callback_urls: none yet when there is no service:
  *  set in the App's settings later, the check 'callback' says so) */
-export function appManifest({ owner, repo, panelUrl, authUrl, name } = {}) {
+export function appManifest({ owner, repo, panelUrl, authUrl, name, suffix = '' } = {}) {
   const url = strip(panelUrl), auth = cleanAuthUrl(authUrl);
-  // (GitHub's names for an App: unique on GitHub, 34 characters at most — the lab and its owner, letters, digits and -)
-  const named = String(name ?? `${repo || 'bds-lab'}-${owner ?? ''}`).replace(/[^A-Za-z0-9 _.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 34);
+  // (GitHub's names for an App: unique on GitHub, 34 characters at most — the lab and its owner, letters, digits and -; an App
+  // made again carries a short suffix, the old name being taken)
+  const tail = /^[a-z0-9]{1,6}$/.test(String(suffix)) ? `-${suffix}` : '';
+  const named = String(name ?? `${repo || 'bds-lab'}-${owner ?? ''}`).replace(/[^A-Za-z0-9 _.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 34 - tail.length).replace(/-+$/, '') + tail;
   return {
     name: named, url, hook_attributes: { url, active: false }, redirect_url: url, callback_urls: auth ? [`${auth}/callback`] : [], setup_url: url,
     public: true, default_permissions: { ...APP_PERMISSIONS }, default_events: [], request_oauth_on_install: false,
@@ -66,7 +68,7 @@ const b64url = (b) => { let s = ''; for (const x of b) s += String.fromCharCode(
  *  secret for the sign-in service (48 random bytes made here) sealed into secrets, its id, slug and client id into variables.
  *  The answer's keys are wiped from it as soon as they are sealed (also when GitHub refuses one): nothing is kept, nothing
  *  shown → { id, slug, clientId, owner, url, secrets: [names], variables: [names] } (random: tests only) */
-export async function storeApp(api, lab, conv, { random = (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)) } = {}) {
+export async function storeApp(api, lab, conv, { random = (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)), callback = null } = {}) {
   const slug = typeof lab === 'string' ? lab : lab?.slug;
   if (!SLUG.test(String(slug ?? ''))) throw new Error('ラボのリポジトリは owner/名前 で');
   const wipe = () => { for (const k of ['pem', 'client_secret', 'webhook_secret']) if (conv && k in conv) conv[k] = undefined; };
@@ -76,7 +78,9 @@ export async function storeApp(api, lab, conv, { random = (n) => globalThis.cryp
   const done = { secrets: [], variables: [] }, info = { id: conv.id, slug: conv.slug, clientId: conv.client_id, owner: conv.owner?.login ?? null, url: /^https:\/\//.test(String(conv.html_url ?? '')) ? conv.html_url : null };
   try {
     for (const [n, v] of [['APP_PRIVATE_KEY', conv.pem], ['APP_CLIENT_SECRET', conv.client_secret], ['AUTH_STATE_SECRET', b64url(r)]]) { await api.putSecret(slug, n, v); done.secrets.push(n); }
-    for (const [n, v] of [['APP_ID', String(conv.id)], ['APP_SLUG', conv.slug], ['APP_CLIENT_ID', String(conv.client_id)]]) { await api.setVariable(slug, n, v); done.variables.push(n); }
+    // (APP_CALLBACK_URL: the Callback URL the App was made with — GitHub shows it to no token, so the lab keeps it to know)
+    const cb = cleanAuthUrl(String(callback ?? '').replace(/\/callback$/, '')) ? String(callback) : 'none';
+    for (const [n, v] of [['APP_ID', String(conv.id)], ['APP_SLUG', conv.slug], ['APP_CLIENT_ID', String(conv.client_id)], ['APP_CALLBACK_URL', cb]]) { await api.setVariable(slug, n, v); done.variables.push(n); }
   } catch (e) {
     throw new Error(`${e.message} — App ${info.slug} はできています（登録できたもの: ${[...done.secrets, ...done.variables].join('・') || 'なし'}）。鍵は App の設定で作り直し、「秘密」で APP_PRIVATE_KEY・APP_CLIENT_SECRET に`);
   } finally { wipe(); r.fill(0); }
@@ -138,9 +142,17 @@ const sleeper = (ms) => new Promise((r) => setTimeout(r, ms));
  *  login of the person starting it (the run waited for is theirs). sleep / every / timeoutMs: tests */
 /** what is wrong with Cloudflare's token and account as typed (pure): words, or null */
 export function cfProblem(cf) {
-  if (!String(cf?.token ?? '') || /\s/.test(cf.token) || String(cf.token).length < 20) return 'Cloudflare の API トークンの形が違います（「Edit Cloudflare Workers」のテンプレートで作った、空白のない長い文字列）';
-  if (!/^[0-9a-f]{32}$/i.test(String(cf?.account ?? ''))) return 'Cloudflare のアカウント ID は 32 文字の 16 進数です（Cloudflare の画面の右側「Account ID」）';
+  if (!String(cf?.token ?? '') || /\s/.test(cf.token) || String(cf.token).length < 20) return 'Cloudflare の API トークンの形が違います（「Cloudflare でトークンを作る」のリンクで作った、空白のない長い文字列）';
+  // (the account is found from the token by auth-deploy.yml: only a typed one is checked)
+  if (String(cf?.account ?? '') && !/^[0-9a-f]{32}$/i.test(String(cf.account))) return 'Cloudflare のアカウント ID は 32 文字の 16 進数です（空でもかまいません: トークンから見つけます）';
   return null;
+}
+/** Cloudflare's own page for a new API token with what the sign-in service needs already chosen (pure): Workers Scripts edit
+ *  (put it in place, its workers.dev name) and Account Settings read (find the account) — the person presses
+ *  「Continue to summary」 and 「Create Token」 and pastes it once: Cloudflare hands a token to no other site */
+export function cfTokenUrl() {
+  const keys = JSON.stringify([{ key: 'workers_scripts', type: 'edit' }, { key: 'account_settings', type: 'read' }]);
+  return `https://dash.cloudflare.com/profile/api-tokens?${new URLSearchParams({ permissionGroupKeys: keys, accountId: '*', zoneId: 'all', name: 'bds-lab-auth' })}`;
 }
 /** the App's installation page with the lab already chosen (pure): GitHub's suggested_target_id (the lab's owner) and
  *  repository_ids[] (the lab) — the person presses Install alone; without the ids, the plain page */
@@ -163,12 +175,14 @@ export const manifestProblems = (m) => ghCheck('appManifest', m, { strictOnly: t
 // stops the run with why and its link. A ❔ for 「App がラボに入っている」 is let pass right after coming back from installing
 // it (a token's sign-in cannot see installations).
 export const SKIPPABLE = Object.freeze(['deploy', 'auth', 'callback']);
-export function autoNext(cs, { installed = false } = {}) {
+export function autoNext(cs, { installed = false, planned = null } = {}) {
   const all = cs ?? [], by = Object.fromEntries(all.map((c) => [c.key, c]));
   const runnable = (c) => c && c.ok !== true && typeof c.fix?.run === 'function' && !(c.fix.inputs ?? []).length;
   const stop = (c) => ({ kind: 'stop', key: c.key, why: c.need || `${c.label} を確かめられません`, ...(c.fix?.link ? { link: c.fix.link, linkLabel: c.fix.label } : {}) });
   if (by.pages && by.pages.ok !== true) return runnable(by.pages) ? { kind: 'run', key: 'pages' } : stop(by.pages);
   if (by.app && by.app.ok === null) return stop(by.app);
+  // (Cloudflare's token in and no address yet: the address first — the App is then made with its Callback URL already right)
+  if (by.app && by.app.ok === false && by.app.fix?.manifest && by.app.cfReady && !planned) return { kind: 'plan' };
   if (by.app && by.app.ok === false) return by.app.fix?.manifest ? { kind: 'app' } : stop(by.app);
   if (by.installed && by.installed.ok !== true && !installed) return { kind: 'install' };
   // (the sign-in service: done by the panel itself when it can be — Cloudflare's keys already in, or the page told again —
@@ -176,25 +190,22 @@ export function autoNext(cs, { installed = false } = {}) {
   if (by.deploy && by.deploy.ok !== true && runnable(by.deploy)) return { kind: 'run', key: 'deploy' };
   if (by.deploy && by.deploy.ok === true && by.deploy.fix?.run && !(by.auth?.ok === true)) return { kind: 'run', key: 'deploy' };
   if (by.auth && by.auth.ok !== true && runnable(by.auth)) return { kind: 'run', key: 'auth' };
+  // (the service up but the App's Callback URL not it: the App made again with it — GitHub's two buttons, nothing to paste)
+  if (by.callback && by.callback.ok !== true && by.callback.fix?.manifest) return { kind: 'app', remake: true };
   const skipped = all.filter((c) => SKIPPABLE.includes(c.key) && c.ok !== true).map((c) => c.label);
   const left = all.filter((c) => c.ok !== true && !c.key.startsWith('host:') && !SKIPPABLE.includes(c.key) && !(c.key === 'installed' && installed && c.ok === null));
   if (left.length) return stop(left[0]);
   return { kind: 'done', skipped };
 }
-export async function deployAuth(api, slug, { ref = 'main', cf = null, me, sleep = sleeper, every = 10_000, timeoutMs = 15 * 60_000, onStep = () => {} } = {}) {
+/** auth-deploy.yml started by this person on this branch and waited for → the finished run (a failure: its own words). The
+ *  new run is the one that was not there before — no clock of this device is trusted to tell it — started by hand on this
+ *  branch by this person: not a pull request's run from a fork, nor someone else's, whose notice could say anything */
+async function runAuthDeploy(api, slug, { ref, me, inputs = {}, sleep, every, timeoutMs, onStep }) {
   if (!LOGIN.test(String(me ?? ''))) throw new Error('始める人（GitHub のログイン名）が分かりません: サインインし直してください');
-  if (cf) {
-    const bad = cfProblem(cf); if (bad) throw new Error(bad);
-    await api.putSecret(slug, 'CLOUDFLARE_API_TOKEN', cf.token);
-    await api.putSecret(slug, 'CLOUDFLARE_ACCOUNT_ID', cf.account);
-    onStep('Cloudflare の秘密を封じて登録しました');
-  }
-  // (the new run is the one that was not there before — no clock of this device is trusted to tell it — started by hand on
-  // this branch by this person: not a pull request's run from a fork, nor someone else's, whose notice could say anything)
   const before = new Set((await api.runs(slug, { workflow: 'auth-deploy.yml', per: 20 })).map((r) => r.id)), who = String(me).toLowerCase();
   const mine = (r) => !before.has(r.id) && r.event === 'workflow_dispatch' && r.head_branch === ref && [r.actor?.login, r.triggering_actor?.login].some((l) => String(l ?? '').toLowerCase() === who);
-  await api.dispatch(slug, 'auth-deploy.yml', ref, {});
-  onStep('auth-deploy.yml を始めました: 置き終わるのを待っています');
+  await api.dispatch(slug, 'auth-deploy.yml', ref, inputs);
+  onStep(inputs.plan === 'true' ? 'Cloudflare を確かめています（auth-deploy.yml）…' : 'auth-deploy.yml を始めました: 置き終わるのを待っています');
   let run = null;
   for (let waited = 0; !(run?.status === 'completed'); waited += every) {
     if (waited > timeoutMs) throw new Error('auth-deploy.yml が時間内に終わりません（「進み具合」で見てください）');
@@ -202,10 +213,31 @@ export async function deployAuth(api, slug, { ref = 'main', cf = null, me, sleep
     run = (await api.runs(slug, { workflow: 'auth-deploy.yml', per: 20 })).find(mine) ?? null;
   }
   if (run.conclusion !== 'success') {
-    // (the workflow says why in its own words — workers.dev not set up, the token refused, the App's secrets missing …)
+    // (the workflow says why in its own words — the token refused, no account, the App's secrets missing …)
     let why = null; try { why = await runNotice(api, slug, run.id, 'auth-deploy', 'failure'); } catch { /* the run's page then */ }
     throw new Error(why ? `auth-deploy.yml が止まりました: ${why}` : `auth-deploy.yml が ${run.conclusion} で終わりました（「進み具合」で理由を）`);
   }
+  return run;
+}
+/** before the App is made: Cloudflare's token checked for real and the service's address told by the lab's own workflow
+ *  (auth-deploy.yml plan: the account found, its workers.dev name made if none) → the address, so the App's manifest
+ *  carries its Callback URL and nobody pastes it later */
+export async function planAuth(api, slug, { ref = 'main', me, sleep = sleeper, every = 10_000, timeoutMs = 10 * 60_000, onStep = () => {} } = {}) {
+  const run = await runAuthDeploy(api, slug, { ref, me, inputs: { plan: 'true' }, sleep, every, timeoutMs, onStep });
+  const url = cleanAuthUrl(await runNotice(api, slug, run.id, 'auth-plan'));
+  if (!url) throw new Error('auth-deploy.yml がサービスのアドレス（注釈 auth-plan）を残していません: ラボが古いかもしれません');
+  onStep(`Cloudflare は大丈夫です: サービスは ${url} になります`);
+  return url;
+}
+export async function deployAuth(api, slug, { ref = 'main', cf = null, me, sleep = sleeper, every = 10_000, timeoutMs = 15 * 60_000, onStep = () => {} } = {}) {
+  if (!LOGIN.test(String(me ?? ''))) throw new Error('始める人（GitHub のログイン名）が分かりません: サインインし直してください');
+  if (cf) {
+    const bad = cfProblem(cf); if (bad) throw new Error(bad);
+    await api.putSecret(slug, 'CLOUDFLARE_API_TOKEN', cf.token);
+    if (cf.account) await api.putSecret(slug, 'CLOUDFLARE_ACCOUNT_ID', cf.account);
+    onStep('Cloudflare のトークンを封じて登録しました');
+  }
+  const run = await runAuthDeploy(api, slug, { ref, me, inputs: {}, sleep, every, timeoutMs, onStep });
   const raw = await runNotice(api, slug, run.id, 'auth-url'), url = cleanAuthUrl(raw);
   if (!url) throw new Error('auth-deploy.yml がサービスの URL（注釈 auth-url: https の origin の根）を残していません');
   await api.setVariable(slug, 'LAB_AUTH_URL', url);
@@ -258,7 +290,7 @@ export async function checks(ctx) {
   const slug = lab.slug, ref = lab.repo?.default_branch ?? 'main', owner = lab.repo?.owner?.login ?? slug.split('/')[0], isOrg = lab.repo?.owner?.type === 'Organization';
   const secrets = Array.isArray(lab.secrets) ? lab.secrets : null, has = (n) => Boolean(secrets?.includes(n));
   const wf = (f) => (lab.workflows ?? []).some((w) => String(w.path ?? w).endsWith(`/${f}`));
-  const v = await readVars(api, slug, ['APP_ID', 'APP_SLUG', 'APP_CLIENT_ID', 'LAB_AUTH_URL']);
+  const v = await readVars(api, slug, ['APP_ID', 'APP_SLUG', 'APP_CLIENT_ID', 'LAB_AUTH_URL', 'APP_CALLBACK_URL']);
   const appSlug = v.APP_SLUG || config.appSlug || null, clientId = v.APP_CLIENT_ID || config.appClientId || null, authUrl = cleanAuthUrl(config.authUrl);
   const more = moreRights({ owner, isOrg, appSlug, signedInWithApp }), noRight = (why) => `${why}: ${more.how}`, fixMore = { label: more.label, link: more.link };
   // (next: when a row has no fix of its own because another row comes first, the step to take instead: { label, goto: key } — the
@@ -286,6 +318,8 @@ export async function checks(ctx) {
   else if ((v.APP_ID || v.APP_ID === undefined) && appSlug) c('app', appLabel, true);
   else c('app', appLabel, false, 'まだありません: 1 回のクリックで作れます（鍵は秘密に、id は変数に、ここで自動で入ります）', makeApp);
   out.at(-1).slug = appSlug;   // (for 「全自動で準備する」: the App to install)
+  // (for 「全自動で準備する」: Cloudflare's token is in, so the service's address can be known before the App is made)
+  out.at(-1).cfReady = has('CLOUDFLARE_API_TOKEN') && wf('auth-deploy.yml') && !authUrl && !cleanAuthUrl(v.LAB_AUTH_URL);
 
   // ---- the App on the lab: what decides who may do what, without anyone's personal token ----
   let inst = null, instWhy = '';
@@ -314,14 +348,14 @@ export async function checks(ctx) {
     await api.setVariable(slug, 'LAB_AUTH_URL', u); await pagesYml();
     return `LAB_AUTH_URL を ${u} にしました${wf('pages.yml') ? '（pages.yml でページに渡します）' : ''}`;
   } };
-  const cfReady = has('CLOUDFLARE_API_TOKEN') && has('CLOUDFLARE_ACCOUNT_ID') && wf('auth-deploy.yml');
+  const cfReady = has('CLOUDFLARE_API_TOKEN') && wf('auth-deploy.yml');
   const wait = ctx.wait ?? {}, deploy = (cf) => async (_v, { onStep } = {}) => `サインインのサービスを ${await deployAuth(api, slug, { ref, cf, me: ctx.me?.login, onStep, ...wait })} に置きました（LAB_AUTH_URL に入れ、pages.yml でページに渡します）`;
   const deployNeeds = (cf) => [...(cf ? ['secrets.put'] : []), 'dispatch', 'variables'];
   const redeploy = cfReady ? { label: 'auth-deploy.yml でもう一度置く', needs: deployNeeds(false), run: deploy(null) } : urlFix, varAuth = cleanAuthUrl(v.LAB_AUTH_URL);
   const rebuild = !wf('pages.yml') ? { label: 'Actions の画面を開く（GitHub へ）', link: `${GH}/actions` } : { label: 'pages.yml を始める', needs: ['dispatch'], run: async () => { await pagesYml(); return 'pages.yml を始めました（数分でページが新しくなります）'; } };
   if (!authUrl && varAuth) c('auth', 'サインインのサービス', false, `変数 LAB_AUTH_URL（${varAuth}）はありますが、このページの設定にまだありません: pages.yml をもう一度`, rebuild);
   else if (!authUrl && String(config.authUrl ?? '').trim()) c('auth', 'サインインのサービス', false, `このページの設定のサービスの URL（${String(config.authUrl).trim()}）が https の origin の根ではありません: サービスは origin の / に（auth/README.md）`, urlFix);
-  else if (!authUrl) c('auth', 'サインインのサービス', false, 'まだありません: Cloudflare に置く（下の「置く準備」）か、自分のサーバーに置いて URL を入れます。サービスは origin の / に（auth/README.md）', urlFix);
+  else if (!authUrl) { /* none yet: the Cloudflare row below is the one step (its own server's URL there too) */ }
   else {
     const hl = await health(authUrl, ctx.fetchImpl), here = strip(ctx.panelUrl);
     const origin = (() => { try { return new URL(here).origin; } catch { return null; } })();
@@ -335,18 +369,34 @@ export async function checks(ctx) {
     else c('auth', `サインインのサービス（${authUrl}）`, true);
   }
   // (GitHub shows an App's callback URL to no token: right when signing in with the App works)
-  if (appSlug && authUrl) c('callback', 'App の Callback URL がサインインのサービスを指す', signedInWithApp ? true : null, `App の設定の「Callback URL」が ${authUrl}/callback か確かめてください（App でサインインできれば合っています）`, appSettingsUrl(appSlug, owner, isOrg) ? { label: 'App の設定（GitHub へ）', link: appSettingsUrl(appSlug, owner, isOrg) } : null);
+  // (the lab keeps the Callback URL the App was made with — APP_CALLBACK_URL — so it is known without anyone looking; when it is
+  // not this service's, the App is made again with it: GitHub's 「Create GitHub App」 and 「Install」, nothing to paste)
+  if (appSlug && authUrl) {
+    const want = `${authUrl}/callback`, made = v.APP_CALLBACK_URL;
+    const known = signedInWithApp || made === want;
+    const remake = { label: 'Callback URL 入りで App を作り直す（GitHub へ）', manifest: true, remake: true, needs: [...APP_NEEDS] };
+    c('callback', 'App の Callback URL がサインインのサービスを指す', known ? true : made === undefined || made === null ? null : false,
+      made && made !== want ? `App は別の Callback URL（${made === 'none' ? 'なし' : made}）で作られています: ${want} 入りで作り直します（GitHub のボタン 2 つ: 「Create GitHub App」「Install」）` : `App が ${want} を Callback URL に持っているか分かりません: 作り直すと確実です（GitHub のボタン 2 つ）`, remake);
+  }
 
-  // ---- putting the service on Cloudflare: its token and account in secrets, then auth-deploy.yml ----
+  // ---- 「GitHub でサインイン」 on Cloudflare: one link (Cloudflare's own token page, everything chosen) and one paste — the
+  // account and its workers.dev name are found and made by auth-deploy.yml; the service put in place once the App is there ----
   if (!authUrl && !varAuth) {
-    const label = 'サインインのサービスを Cloudflare に置く準備', appReady = has('APP_CLIENT_SECRET') && has('AUTH_STATE_SECRET') && Boolean(clientId);
-    const cfFix = { label: '封じて登録し、置く', inputs: [{ name: 'token', label: 'CLOUDFLARE_API_TOKEN（Workers を編集できる API トークン）', secret: true }, { name: 'account', label: 'CLOUDFLARE_ACCOUNT_ID（32 文字）', placeholder: '0123456789abcdef0123456789abcdef' }], needs: deployNeeds(true),
-      run: (vals = {}, opts) => deploy({ token: String(vals.token ?? '').trim(), account: String(vals.account ?? '').trim() })(vals, opts) };
+    const label = '「GitHub でサインイン」（なくても使えます: 今と同じトークンで入れます）', appReady = has('APP_CLIENT_SECRET') && has('AUTH_STATE_SECRET') && Boolean(clientId);
+    const cfFix = { label: '貼って置く', help: { label: 'Cloudflare でトークンを作る（Cloudflare へ）', link: cfTokenUrl() },
+      inputs: [{ name: 'token', label: 'Cloudflare のトークン（リンク先で「Continue to summary」→「Create Token」→ 出た文字列をコピー）', secret: true }], needs: deployNeeds(true), auto: true,
+      run: async (vals = {}, opts = {}) => {
+        const cf = { token: String(vals.token ?? '').trim() }, bad = cfProblem(cf);
+        if (bad) throw new Error(bad);
+        if (appReady) return deploy(cf)(vals, opts);
+        await api.putSecret(slug, 'CLOUDFLARE_API_TOKEN', cf.token);
+        return 'Cloudflare のトークンを封じて登録しました: App を作るときにサービスの URL を入れ、App ができたら置きます';
+      }, alt: urlFix };
     if (!wf('auth-deploy.yml')) c('deploy', label, false, `auth-deploy.yml がありません。ラボが古いので、新しくします（フォークなら、ラボのページの「Sync fork」→「Update branch」。そうでなければ新しい bds-lab の版を取り込みます）`, { label: 'ラボのページを開く（GitHub へ）', link: GH });
     else if (!secrets) c('deploy', label, null, noRight('秘密の名前を見られません（Secrets: Read and write が要ります）'), fixMore);
-    else if (!appReady) c('deploy', label, false, 'まず上の「GitHub App」の行で App を作ります（サービスは App の client ID と秘密で動きます）。作ってあるのに足りないなら、秘密に APP_CLIENT_SECRET・AUTH_STATE_SECRET を、変数に APP_CLIENT_ID を入れます', appSlug ? secretsPage : null, appSlug ? null : toApp);
-    else if (cfReady) c('deploy', label, true, '', { label: 'Cloudflare に置く（auth-deploy.yml）', needs: deployNeeds(false), run: deploy(null) });
-    else c('deploy', label, false, 'なくても使えます（そのときは今と同じトークンで入ります）。Cloudflare の API トークンとアカウント ID を入れると、ここで封じて登録し、auth-deploy.yml で置き、その URL を LAB_AUTH_URL に入れて pages.yml でページに渡します', cfFix);
+    else if (cfReady && appReady) c('deploy', label, true, '', { label: 'Cloudflare に置く（auth-deploy.yml）', needs: deployNeeds(false), run: deploy(null) });
+    else if (cfReady) c('deploy', label, true, '');
+    else c('deploy', label, false, '下のリンクで Cloudflare のトークンを作って貼るだけです（アカウント・workers.dev の名前・置く・ページへの反映・App の Callback URL は全部自動）。Cloudflare のアカウントが無ければ、リンク先で「Sign up」（GitHub で無料）', cfFix);
   }
 
   // ---- the workflows: the App's own token instead of a person's (hostrun, secrets) ----

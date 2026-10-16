@@ -11,6 +11,11 @@ name: auth-deploy
 # variable LAB_AUTH_URL. On a server of your own instead: auth/README.md (Docker).
 on:
   workflow_dispatch:
+    inputs:
+      plan:
+        description: "true: nothing put in place; Cloudflare's token checked and the service's address told (notice auth-plan), so the App is made with its Callback URL already right"
+        required: false
+        default: 'false'
 permissions: { contents: read }
 concurrency: { group: auth-deploy, cancel-in-progress: false }
 jobs:
@@ -22,11 +27,52 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: 22 }
-      - name: Cloudflare Workers に置く
-        working-directory: auth
+      # (only the token is ever asked of the person: the account found from it, its workers.dev name made when it has none —
+      # then the service's address is known before anything is put in place: https://bds-lab-auth.<name>.workers.dev)
+      - name: Cloudflare のアカウントと workers.dev の名前
+        id: cf
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          OWNER: ${{ github.repository_owner }}
+          PLAN: ${{ inputs.plan }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error title=auth-deploy::$1"; exit 1; }
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || fail "秘密 CLOUDFLARE_API_TOKEN が要ります（管理パネルの「準備」の Cloudflare のリンクで作って貼ります）"
+          CF=https://api.cloudflare.com/client/v4
+          cf() { curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'Content-Type: application/json' "$@"; }
+          j() { node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{let o;try{o=JSON.parse(s)}catch{o={}};const v=(new Function("o","return "+process.argv[1]))(o);process.stdout.write(v==null?"":String(v))})' "$1"; }
+          v="$(cf "$CF/user/tokens/verify")"
+          [ "$(printf '%s' "$v" | j 'o.result?.status')" = active ] || fail "Cloudflare がトークンを断りました: パネルの「準備」の Cloudflare のリンクで作り直して貼ってください"
+          acct="$CLOUDFLARE_ACCOUNT_ID"
+          if [ -z "$acct" ]; then
+            a="$(cf "$CF/accounts?per_page=50")"
+            n="$(printf '%s' "$a" | j '(o.result||[]).length')"
+            [ "$n" = 1 ] || fail "トークンで見えるアカウントが ${n:-0} 個です（1 つのはず）: トークンの Account Resources を 1 つのアカウントにして作り直してください"
+            acct="$(printf '%s' "$a" | j 'o.result[0].id')"
+          fi
+          printf '%s' "$acct" | grep -qE '^[0-9a-f]{32}$' || fail "Cloudflare のアカウント ID を読めません"
+          sub="$(cf "$CF/accounts/$acct/workers/subdomain" | j 'o.result?.subdomain')"
+          if [ -z "$sub" ]; then
+            base="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-\n' '-' | sed 's/^-*//;s/-*$//' | cut -c1-40)"
+            for try in "$base" "$base-lab" "$base-$(date +%s | tail -c 5)"; do
+              r="$(cf -X PUT "$CF/accounts/$acct/workers/subdomain" -d "{\"subdomain\":\"$try\"}")"
+              if [ "$(printf '%s' "$r" | j 'o.success')" = true ]; then sub="$try"; echo "workers.dev の名前を $sub にしました"; break; fi
+            done
+            [ -n "$sub" ] || fail "workers.dev の名前を作れませんでした: dash.cloudflare.com の「Workers & Pages」を一度開いて名前を決めてから、もう一度"
+          fi
+          name="$(sed -n 's/^name *= *"\([a-z0-9-]*\)".*/\1/p' auth/wrangler.toml | head -1)"
+          [ -n "$name" ] || fail "auth/wrangler.toml に name がありません"
+          echo "::add-mask::$acct"
+          { echo "account=$acct"; echo "url=https://$name.$sub.workers.dev"; } >> "$GITHUB_OUTPUT"
+          if [ "$PLAN" = true ]; then echo "::notice title=auth-plan::https://$name.$sub.workers.dev"; fi
+      - name: Cloudflare Workers に置く
+        if: inputs.plan != 'true'
+        working-directory: auth
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ steps.cf.outputs.account }}
           CLIENT_ID: ${{ vars.APP_CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.APP_CLIENT_SECRET }}
           STATE_SECRET: ${{ secrets.AUTH_STATE_SECRET }}
@@ -36,7 +82,6 @@ jobs:
         run: |
           set -euo pipefail
           fail() { echo "::error title=auth-deploy::$1"; exit 1; }
-          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then fail "秘密 CLOUDFLARE_API_TOKEN と CLOUDFLARE_ACCOUNT_ID が要ります（管理パネルの「準備」）"; fi
           # (strict: a service without the App's id and secrets answers 503 to everyone — never put one in place half made)
           missing=""
           [ -n "${CLIENT_ID:-}" ] || missing="$missing 変数APP_CLIENT_ID"

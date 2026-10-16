@@ -74,7 +74,7 @@ async function fakeGitHub(init = {}) {
       }
       if ((x = /^\/repos\/o\/lab\/actions\/runs\/(\d+)\/jobs\?/.exec(u))) return send(res, 200, { jobs: [{ name: 'deploy', check_run_url: `https://api.github.com/repos/o/lab/check-runs/${x[1]}1` }] });
       if ((x = /^\/repos\/o\/lab\/check-runs\/(\d+)\/annotations\?/.exec(u)) && st.failWhy && st.deployConclusion !== 'success') return send(res, 200, [{ annotation_level: 'failure', title: 'auth-deploy', message: st.failWhy }]);
-      if ((x = /^\/repos\/o\/lab\/check-runs\/(\d+)\/annotations\?/.exec(u))) return send(res, 200, /^700\d1$/.test(x[1]) ? [{ annotation_level: 'notice', title: 'auth-url', message: 'https://evil.example' }] : st.notice ? [{ annotation_level: 'warning', title: 'auth-url', message: 'https://wrong.example' }, { annotation_level: 'notice', title: 'auth-url', message: ` ${st.notice}/ ` }] : []);
+      if ((x = /^\/repos\/o\/lab\/check-runs\/(\d+)\/annotations\?/.exec(u))) return send(res, 200, /^700\d1$/.test(x[1]) ? [{ annotation_level: 'notice', title: 'auth-url', message: 'https://evil.example' }] : st.notice ? [{ annotation_level: 'warning', title: 'auth-url', message: 'https://wrong.example' }, { annotation_level: 'notice', title: 'auth-url', message: ` ${st.notice}/ ` }, { annotation_level: 'notice', title: 'auth-plan', message: st.notice }] : []);
       if (u === '/user/installations?per_page=100') return send(res, 200, { total_count: st.installs.length, installations: st.installs });
       if ((x = /^\/user\/installations\/(\d+)\/repositories\?per_page=100&page=1$/.exec(u))) return send(res, 200, { repositories: (st.instRepos[x[1]] ?? []).map((full_name) => ({ full_name })) });
       send(res, 404, { message: `Not Found ${m} ${u}` });
@@ -148,12 +148,13 @@ await t('storeApp: the App\'s private key, client secret and a new 48-byte state
     const rnd = new Uint8Array(48).map((_, i) => i * 5 + 1);
     let given = null;
     const r = await S.storeApp(f.api, 'o/lab', conv, { random: (n) => { eq(n, 48); given = rnd; return rnd; } });
-    eq(r, { id: 4242, slug: 'lab-o', clientId: 'Iv1.app', owner: 'o', url: 'https://github.com/apps/lab-o', secrets: ['APP_PRIVATE_KEY', 'APP_CLIENT_SECRET', 'AUTH_STATE_SECRET'], variables: ['APP_ID', 'APP_SLUG', 'APP_CLIENT_ID'] });
+    eq(r, { id: 4242, slug: 'lab-o', clientId: 'Iv1.app', owner: 'o', url: 'https://github.com/apps/lab-o', secrets: ['APP_PRIVATE_KEY', 'APP_CLIENT_SECRET', 'AUTH_STATE_SECRET'], variables: ['APP_ID', 'APP_SLUG', 'APP_CLIENT_ID', 'APP_CALLBACK_URL'] });
+    eq(f.st.vars.get('APP_CALLBACK_URL'), 'none', 'made with no Callback URL: kept as none (the lab then knows to make it again)');
     eq([f.open('APP_PRIVATE_KEY'), f.open('APP_CLIENT_SECRET')], [PEM, CLIENT_SECRET], 'GitHub (the key\'s owner) opens them');
     const state = f.open('AUTH_STATE_SECRET');
     eq(state, Buffer.from(new Uint8Array(48).map((_, i) => i * 5 + 1)).toString('base64url'), 'the state secret: the 48 random bytes, base64url');
     ok(state.length === 64 && given.every((b) => b === 0), 'long enough for the service (32+), its bytes wiped');
-    eq(Object.fromEntries(f.st.vars), { APP_ID: '4242', APP_SLUG: 'lab-o', APP_CLIENT_ID: 'Iv1.app' });
+    eq(Object.fromEntries(f.st.vars), { APP_ID: '4242', APP_SLUG: 'lab-o', APP_CLIENT_ID: 'Iv1.app', APP_CALLBACK_URL: 'none' });
     eq([conv.pem, conv.client_secret, conv.webhook_secret], [undefined, undefined, undefined], 'the answer\'s keys wiped');
     const wire = f.st.seen.map((s) => `${s.u} ${s.body}`).join('\n');
     ok(!wire.includes('MIIEpAIBAAKCAQEAfakefakefake') && !wire.includes(CLIENT_SECRET) && !wire.includes(state), 'no key travels plain');
@@ -175,12 +176,15 @@ await t('checks, a new lab: Pages off (its fix turns it on built by pages.yml), 
   try {
     const ctx = { api: f.api, lab: LAB(), hosts: [{ slug: 'lender/host' }, { slug: 'bad slug' }], config: {}, panelUrl: 'https://o.github.io/lab/', signedInWithApp: false, fetchImpl: f.fetchImpl };
     const cs = await S.checks(ctx), c = byKey(cs);
-    eq(cs.map((x) => x.key), ['pages', 'app', 'installed', 'auth', 'deploy', 'workflows', 'host:lender/host'], 'in the order to do them; a host that is not owner/repo is left out');
-    eq(cs.map((x) => x.ok), [false, false, false, false, false, false, false]);
+    eq(cs.map((x) => x.key), ['pages', 'app', 'installed', 'deploy', 'workflows', 'host:lender/host'], 'in the order to do them (one row for the sign-in service); a host that is not owner/repo is left out');
+    eq(cs.map((x) => x.ok), [false, false, false, false, false, false]);
     ok(cs.every((x) => typeof x.label === 'string' && x.label && x.need), 'each says what is missing');
     ok(c.app.fix.manifest === true && /1 回のクリック/.test(c.app.need), JSON.stringify(c.app));
     const up = /まず上の「GitHub App」の行で App を作ります/;
-    ok(up.test(c.installed.need) && up.test(c.deploy.need) && c.deploy.fix === null && up.test(c['host:lender/host'].need), 'what needs the App says so, and where to make it');
+    ok(up.test(c.installed.need) && up.test(c['host:lender/host'].need), 'what needs the App says so, and where to make it');
+    // the sign-in service: Cloudflare's own token page with everything chosen, one field (the token), even before the App
+    ok(c.deploy.fix.help.link === S.cfTokenUrl() && /^https:\/\/dash\.cloudflare\.com\/profile\/api-tokens\?permissionGroupKeys=/.test(c.deploy.fix.help.link) && c.deploy.fix.inputs.map((i) => i.name).join() === 'token' && c.deploy.fix.auto === true, JSON.stringify(c.deploy.fix));
+    ok(JSON.parse(new URL(S.cfTokenUrl()).searchParams.get('permissionGroupKeys')).map((k) => `${k.key}:${k.type}`).join() === 'workers_scripts:edit,account_settings:read', 'what the token may do: put Workers in place, find the account');
     ok(/APP_ID（変数）・APP_PRIVATE_KEY（秘密）/.test(c.workflows.need) && /LAB_HOST_TOKEN・LAB_SECRETS_TOKEN は要りません/.test(c.workflows.need), c.workflows.need);
     // Pages turned on, built by a workflow, pages.yml started
     const msg = await c.pages.fix.run();
@@ -189,7 +193,9 @@ await t('checks, a new lab: Pages off (its fix turns it on built by pages.yml), 
     eq(JSON.parse(post.body), { build_type: 'workflow' });
     ok(f.st.seen.some((s) => s.m === 'POST' && s.u === '/repos/o/lab/actions/workflows/pages.yml/dispatches' && JSON.parse(s.body).ref === 'main'), 'pages.yml started on the default branch');
     eq(byKey(await S.checks(ctx)).pages.ok, true, 'and then it is there');
-    // the service: an address of one's own (https only) → LAB_AUTH_URL, pages.yml to hand it to the page
+    // the service: an address of one's own (https only) → LAB_AUTH_URL, pages.yml to hand it to the page (folded under the
+    // Cloudflare row: 「自分のサーバーに置いたとき」)
+    c.auth = { fix: c.deploy.fix.alt, need: 'サービスは origin の / に（auth/README.md）' };
     eq(c.auth.fix.inputs.map((i) => i.name), ['url']);
     await throws(() => c.auth.fix.run({ url: 'http://plain.example' }), /https:\/\//, 'not https');
     await throws(() => c.auth.fix.run({ url: 'https://x.example/?a=1' }), /https:\/\//, 'a query');
@@ -217,7 +223,14 @@ await t('checks, the App made: it is there; installed (only an App\'s sign-in ca
     ok(tok['host:lender/host'].ok === null && tok['host:lender/host'].fix.link === 'https://github.com/apps/lab-o/installations/new' && /貸し手/.test(tok['host:lender/host'].fix.label), JSON.stringify(tok['host:lender/host']));
     ok(/Only select repositories」でホストのリポジトリだけ/.test(tok['host:lender/host'].need) && /contents・actions・workflows だけ（hostrun）/.test(tok['host:lender/host'].need), `the lender told to give it the host alone: ${tok['host:lender/host'].need}`);
     ok(tok.workflows.ok === true && tok.workflows.need === '', 'APP_ID and APP_PRIVATE_KEY: no personal token for hostrun or secrets');
-    ok(tok.callback.ok === null && /https:\/\/auth\.test\/callback/.test(tok.callback.need) && tok.callback.fix.link === 'https://github.com/settings/apps/lab-o', JSON.stringify(tok.callback));
+    ok(tok.callback.ok === null && /https:\/\/auth\.test\/callback/.test(tok.callback.need) && tok.callback.fix.manifest === true && tok.callback.fix.remake === true, JSON.stringify(tok.callback));
+    // (the lab keeps the Callback URL the App was made with: known without anyone looking)
+    f.st.vars.set('APP_CALLBACK_URL', 'https://auth.test/callback');
+    eq(byKey(await S.checks({ ...base, signedInWithApp: false })).callback.ok, true, 'made with this service\'s: ✅');
+    f.st.vars.set('APP_CALLBACK_URL', 'none');
+    const none = byKey(await S.checks({ ...base, signedInWithApp: false })).callback;
+    ok(none.ok === false && /別の Callback URL（なし）/.test(none.need) && none.fix.remake, JSON.stringify(none));
+    f.st.vars.delete('APP_CALLBACK_URL');
     // (an App made before administration was asked for: what to add, and where on GitHub)
     ok(tok['app-perms'].ok === false && /administration: write/.test(tok['app-perms'].need) && tok['app-perms'].fix.link === 'https://github.com/settings/apps/lab-o/permissions', JSON.stringify(tok['app-perms']));
     f.st.appPerms = { ...S.APP_PERMISSIONS };
@@ -233,7 +246,8 @@ await t('checks, the App made: it is there; installed (only an App\'s sign-in ca
     f.st.instRepos[7] = ['o/lab', 'Lender/Host'];
     // an organization's App: its settings under the organization
     const org = byKey(await S.checks({ ...base, lab: { ...lab, repo: { ...lab.repo, owner: { login: 'acme', type: 'Organization' } } } }));
-    eq(org.callback.fix.link, 'https://github.com/organizations/acme/settings/apps/lab-o');
+    eq(org.workflows.ok === true || org['app-perms'].fix.link, true, 'an organization\'s App read');
+    ok(/organizations\/acme\/settings\/apps\/lab-o/.test(org['app-perms'].fix.link), org['app-perms'].fix.link);
     // the private key gone: its settings to make another
     const nokey = byKey(await S.checks({ ...base, lab: { ...lab, secrets: [] } }));
     ok(nokey.workflows.ok === false && /APP_PRIVATE_KEY（秘密）/.test(nokey.workflows.need) && /作り直し/.test(nokey.workflows.need) && nokey.workflows.fix.link === 'https://github.com/settings/apps/lab-o', nokey.workflows.need);
@@ -281,17 +295,16 @@ await t('checks, putting the service on Cloudflare: its token and account sealed
     const ctx = { api: f.api, lab: LAB({ secrets }), me: { login: 'o' }, config: {}, panelUrl: 'https://o.github.io/lab/', fetchImpl: f.fetchImpl, wait: QUICK };
     const c = byKey(await S.checks(ctx));
     eq(c.deploy.fix.needs, ['secrets.put', 'dispatch', 'variables'], 'what it does, in the policy\'s words');
-    ok(c.deploy.ok === false && /Cloudflare の API トークンとアカウント ID/.test(c.deploy.need) && c.deploy.fix.inputs.map((i) => `${i.name}:${Boolean(i.secret)}`).join() === 'token:true,account:false', JSON.stringify(c.deploy));
-    await throws(() => c.deploy.fix.run({ token: CF_TOKEN, account: 'not-hex' }), /32 文字/, 'an account id of another form');
-    await throws(() => c.deploy.fix.run({ token: 'short', account: CF_ACCOUNT }), /トークンの形/, 'a token of another form');
+    ok(c.deploy.ok === false && /Cloudflare のトークンを作って貼るだけ/.test(c.deploy.need) && c.deploy.fix.inputs.map((i) => `${i.name}:${Boolean(i.secret)}`).join() === 'token:true', JSON.stringify(c.deploy));
+    await throws(() => c.deploy.fix.run({ token: 'short' }), /トークンの形/, 'a token of another form');
     ok(!f.st.secrets.size, 'nothing sent for a wrong form');
     const steps = [];
-    const msg = await c.deploy.fix.run({ token: CF_TOKEN, account: CF_ACCOUNT }, { onStep: (s) => steps.push(s) });
+    const msg = await c.deploy.fix.run({ token: CF_TOKEN }, { onStep: (s) => steps.push(s) });
     ok(msg.includes(AUTH_URL) && steps.length === 3, `${msg}\n${steps.join('\n')}`);
-    eq([f.open('CLOUDFLARE_API_TOKEN'), f.open('CLOUDFLARE_ACCOUNT_ID')], [CF_TOKEN, CF_ACCOUNT], 'sealed, and GitHub opens them');
+    eq([f.open('CLOUDFLARE_API_TOKEN'), f.st.secrets.has('CLOUDFLARE_ACCOUNT_ID')], [CF_TOKEN, false], 'the token sealed (GitHub opens it); the account found by the workflow, not asked');
     eq(f.st.vars.get('LAB_AUTH_URL'), AUTH_URL, 'the notice\'s address (not the warning\'s), trimmed');
     const order = f.st.seen.filter((s) => s.m !== 'GET').map((s) => s.u.replace('/repos/o/lab', ''));
-    eq(order, ['/actions/secrets/CLOUDFLARE_API_TOKEN', '/actions/secrets/CLOUDFLARE_ACCOUNT_ID', '/actions/workflows/auth-deploy.yml/dispatches', '/actions/variables/LAB_AUTH_URL', '/actions/variables', '/actions/workflows/pages.yml/dispatches']);
+    eq(order, ['/actions/secrets/CLOUDFLARE_API_TOKEN', '/actions/workflows/auth-deploy.yml/dispatches', '/actions/variables/LAB_AUTH_URL', '/actions/variables', '/actions/workflows/pages.yml/dispatches']);
     ok(f.st.seen.some((s) => s.u === '/repos/o/lab/check-runs/9011/annotations?per_page=50') && !f.st.seen.some((s) => /check-runs\/11\//.test(s.u)), 'the new run\'s notice, not the old run\'s');
     ok(!f.st.seen.some((s) => s.u.includes(CF_TOKEN) || (s.body.includes(CF_TOKEN))), 'the token never plain');
     // with the secrets already there: no inputs, just put it there
@@ -396,7 +409,7 @@ await t('the 「準備」 tab: the list for anyone; fixes for the lab\'s adminis
     const body = new E('div');
     await UI.setupTab(body, { ...base, ...nav() });
     const rows = body.all((e) => e.attrs['data-check']);
-    eq(rows.map((r) => r.attrs['data-check']), ['pages', 'app', 'installed', 'auth', 'deploy', 'workflows', 'host:lender/host']);
+    eq(rows.map((r) => r.attrs['data-check']), ['pages', 'app', 'installed', 'deploy', 'workflows', 'host:lender/host']);
     const form = body.all((e) => e.tagName === 'FORM')[0];
     ok(form && form.attrs.method === 'post' && /^https:\/\/github\.com\/settings\/apps\/new\?state=[0-9a-f]{32}$/.test(form.attrs.action), `a real form to GitHub: ${JSON.stringify(form?.attrs)}`);
     const hidden = form.all((e) => e.tagName === 'INPUT' && e.attrs.type === 'hidden')[0];
@@ -405,7 +418,7 @@ await t('the 「準備」 tab: the list for anyone; fixes for the lab\'s adminis
     const kept = JSON.parse(base.storage.getItem('bdslab.setup.manifest'));
     eq([kept.state, kept.lab], [form.attrs.action.split('state=')[1], 'o/lab'], 'the state kept in this tab as the form goes');
     const ul = body.all((e) => e.tagName === 'UL')[0];
-    ok(ul.all((e) => e.tagName === 'BUTTON' && /Pages を有効に/.test(e.textContent)).length === 1 && ul.all((e) => e.tagName === 'INPUT' && e.attrs.type === 'password').length === 0, 'Pages\' button; no Cloudflare field before the App');
+    ok(ul.all((e) => e.tagName === 'BUTTON' && /Pages を有効に/.test(e.textContent)).length === 1 && ul.all((e) => e.tagName === 'INPUT' && e.attrs.type === 'password').length === 1, 'Pages\' button; Cloudflare\'s one field even before the App (its address goes into the App)');
     // someone who is not the lab's administrator: the list and the links, no button, no form
     const ro = new E('div');
     await UI.setupTab(ro, { ...base, lab: LAB({ role: 'write' }), ...nav() });
@@ -441,7 +454,7 @@ await t('the 「準備」 tab: the list for anyone; fixes for the lab\'s adminis
     base.storage.setItem('bdslab.setup.manifest', JSON.stringify({ state: 'def', lab: 'o/other', owner: 'o', isOrg: false, at: Date.now() }));
     f.st.log.length = 0;
     const early = UI.takeAppReturn({ ...nav('?code=c0de3&state=def'), storage: base.storage });
-    eq([early, f.st.log], [{ code: 'c0de3', lab: 'o/other', owner: 'o', isOrg: false }, ['replace /lab/#setup']]);
+    eq([early, f.st.log], [{ code: 'c0de3', lab: 'o/other', owner: 'o', isOrg: false, callback: null }, ['replace /lab/#setup']]);
     const el = new E('div');
     await UI.setupTab(el, { ...base, ...nav(), appReturn: early });
     ok(/別のラボ（o\/other）/.test(el.textContent) && !f.st.log.includes('convert') && early.used === true, el.textContent);
@@ -449,7 +462,7 @@ await t('the 「準備」 tab: the list for anyone; fixes for the lab\'s adminis
     eq(UI.takeAppReturn({ ...nav('', '#setup'), storage: base.storage }), null, 'no code: nothing');
     base.storage.setItem('bdslab.setup.manifest', JSON.stringify({ state: 'old', lab: 'o/lab', at: Date.now() - 2 * 3_600_000 }));
     ok(/古い/.test(UI.takeAppReturn({ ...nav('?code=c0de4&state=old'), storage: base.storage }).error), 'older than an hour');
-    // a lender's link for everyone, a Cloudflare field for the administrator once the App is there
+    // a lender's link for everyone; for the administrator, Cloudflare's token page linked and one field (no account id)
     f.st.vars.set('APP_ID', '4242'); f.st.vars.set('APP_CLIENT_ID', 'Iv1.app');
     const later = new E('div');
     await UI.setupTab(later, { ...base, lab: LAB({ secrets: ['APP_PRIVATE_KEY', 'APP_CLIENT_SECRET', 'AUTH_STATE_SECRET'] }), ...nav(), wait: QUICK });
@@ -458,10 +471,11 @@ await t('the 「準備」 tab: the list for anyone; fixes for the lab\'s adminis
     const pw = later.all((e) => e.tagName === 'UL')[0].all((e) => e.tagName === 'INPUT' && e.attrs.type === 'password');
     eq(pw.length, 1, 'Cloudflare\'s token as a password field');
     eq(pw[0].attrs.autocomplete, 'off', 'not offered to the browser\'s password manager');
-    const acct = later.all((e) => e.tagName === 'INPUT' && e.attrs.type === 'text' && /CLOUDFLARE_ACCOUNT_ID/.test(e.attrs['aria-label']))[0];
-    pw[0].value = CF_TOKEN; acct.value = CF_ACCOUNT;
-    await later.all((e) => e.tagName === 'BUTTON' && /封じて登録し、置く/.test(e.textContent))[0].click();
-    eq([f.open('CLOUDFLARE_API_TOKEN'), f.st.vars.get('LAB_AUTH_URL'), pw[0].value, acct.value], [CF_TOKEN, AUTH_URL, '', ''], 'sealed, put there, the fields emptied');
+    ok(later.all((e) => e.tagName === 'A' && e.attrs.href === S.cfTokenUrl()).length === 1, 'Cloudflare\'s own token page, everything chosen');
+    ok(!later.all((e) => e.tagName === 'INPUT' && /ACCOUNT/i.test(e.attrs['aria-label'] ?? '')).length, 'no account field');
+    pw[0].value = CF_TOKEN;
+    await later.all((e) => e.tagName === 'BUTTON' && /貼って置く/.test(e.textContent))[0].click();
+    eq([f.open('CLOUDFLARE_API_TOKEN'), f.st.vars.get('LAB_AUTH_URL'), pw[0].value], [CF_TOKEN, AUTH_URL, ''], 'sealed, put there, the field emptied');
     ok(!later.textContent.includes(CF_TOKEN) && !toast.textContent.includes(CF_TOKEN), 'the token not shown');
   } finally { f.close(); }
 });
@@ -483,7 +497,7 @@ await t('the 「準備」 tab and the policy: a fix only for a GitHub administra
     eq(buttons(b1).map((x) => x.textContent), ['Pages を有効に（GitHub Actions で）']);
     ok(!b1.all((e) => e.tagName === 'FORM').length, 'no App form');
     ok(/役割「admin」には、ポリシー（\.github\/bds-lab-panel\.json の roles）が「秘密を登録する・変数を変える」を許していません/.test(rowOf(b1, 'app').textContent), rowOf(b1, 'app').textContent);
-    ok(/「変数を変える」を許していません/.test(rowOf(b1, 'auth').textContent) && !b1.all((e) => e.tagName === 'INPUT').length, rowOf(b1, 'auth').textContent);   // (and 「全自動で準備する」 offers no Cloudflare field to a role that may not put secrets)
+    ok(/「秘密を登録する・変数を変える」を許していません/.test(rowOf(b1, 'deploy').textContent) && !b1.all((e) => e.tagName === 'INPUT').length, rowOf(b1, 'deploy').textContent);   // (and 「全自動で準備する」 offers no Cloudflare field to a role that may not put secrets)
     // a policy that allows nothing (or a broken file): no button, no form, no field
     for (const policy of [P.checkPolicy({ roles: { admin: [] } }).policy, P.LOCKED_POLICY]) {
       const b = new E('div');
@@ -551,7 +565,7 @@ await t('全自動で準備する: the next step from the checks (pure), the lab
     await UI.setupTab(body, ctx);
     const go = body.all((e) => e.tagName === 'BUTTON' && e.textContent === '全自動で準備する')[0];
     ok(go, 'the button for the lab\'s administrator');
-    ok(!body.all((e) => e.tagName === 'INPUT').filter((e) => !e.parent || true).some((e) => /Cloudflare/.test(e.attrs['aria-label'] ?? '')), 'nothing to type on the card');
+    ok(!body.all((e) => e.tagName === 'DIV' && e.className === 'card').filter((x) => /全自動で準備する/.test(x.textContent) && !/準備と診断/.test(x.textContent)).some((x) => x.all((e) => e.tagName === 'INPUT').length), 'nothing to type on the card');
     await go.click();
     ok(f.st.pages?.build_type === 'workflow', `Pages turned on by itself: ${JSON.stringify(f.st.pages)}`);
     ok(submitted.length === 1 && /^https:\/\/github\.com\/settings\/apps\/new\?state=/.test(submitted[0]) && JSON.parse(store.getItem('bdslab.setup.auto')).stage === 'app' && store.getItem('bdslab.setup.manifest'), `then the App's form to GitHub, its state and the stage kept: ${submitted}`);
@@ -592,6 +606,38 @@ await t('全自動で準備する: a failed auth-deploy.yml says Cloudflare\'s o
   ok(/workers\\\.dev subdomain/.test(y) && /トークンを断りました/.test(y) && /アカウント ID が違う/.test(y), 'Cloudflare\'s refusals said');
   ok(y.indexOf('/health') > deploy && y.indexOf('/health') < y.indexOf('::notice title=auth-url::'), '/health looked at before the address is handed on');
   ok(!/echo .*\$CLIENT_SECRET|\$STATE_SECRET"? *\|\| *true|--var "GITHUB_CLIENT_SECRET/.test(y), 'the App\'s secrets never on a command line or in the log');
+});
+
+await t('全自動で準備する with Cloudflare\'s token pasted first: the address settled before the App (auth-deploy.yml plan), the App made with its Callback URL and the lab told so (APP_CALLBACK_URL); an App whose Callback URL is not the service\'s made again — GitHub\'s buttons, nothing to paste (fake DOM, fake GitHub)', async () => {
+  const R = (key, ok, fix = null, extra = {}) => ({ key, label: key, ok, need: ok === true ? '' : `${key} needed`, fix, ...extra });
+  eq(S.autoNext([R('pages', true), R('app', false, { manifest: true }, { cfReady: true })]), { kind: 'plan' }, 'the address first');
+  eq(S.autoNext([R('pages', true), R('app', false, { manifest: true }, { cfReady: true })], { planned: AUTH_URL }), { kind: 'app' }, 'then the App');
+  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('auth', true), R('callback', false, { manifest: true, remake: true })]), { kind: 'app', remake: true }, 'a Callback URL not the service\'s: the App made again');
+  const m = S.appManifest({ owner: 'noknoh12345-afk', repo: 'bds-lab', panelUrl: 'https://x.github.io/bds-lab/', authUrl: AUTH_URL, suffix: 'ab12' });
+  ok(m.name === 'bds-lab-noknoh12345-afk-ab12' && m.name.length <= 34 && m.callback_urls[0] === `${AUTH_URL}/callback`, JSON.stringify([m.name, m.callback_urls]));
+  ok(S.appManifest({ owner: 'a-very-long-organisation-name', repo: 'bds-lab', panelUrl: 'https://x/', suffix: 'ab12' }).name.length <= 34, 'still 34 at most');
+  const { E } = fakeDom();
+  const UI = await imp('panel/ui/setup.mjs');
+  const f = await fakeGitHub({ pages: { build_type: 'workflow' } });
+  try {
+    const store = AC.memoryStorage(), submitted = [];
+    globalThis.document.body.append = (x) => { x.requestSubmit = () => { x.fire('submit'); submitted.push(x); }; };
+    const ctx = { api: f.api, lab: LAB({ secrets: ['CLOUDFLARE_API_TOKEN'], repo: { default_branch: 'main', owner: { login: 'o', type: 'User', id: 11 }, id: 22 } }), hosts: [], me: { login: 'o' }, config: {}, panelUrl: 'https://o.github.io/lab/', signedInWithApp: false, fetchImpl: f.fetchImpl, storage: store, wait: QUICK,
+      location: { search: '', hash: '#setup', pathname: '/lab/', assign() {} }, history: { replaceState() {} } };
+    const body = new E('div');
+    await UI.setupTab(body, ctx);
+    await body.all((e) => e.tagName === 'BUTTON' && e.textContent === '全自動で準備する')[0].click();
+    const plan = f.st.seen.find((x) => /auth-deploy\.yml\/dispatches/.test(x.u));
+    eq(JSON.parse(plan.body).inputs, { plan: 'true' }, 'auth-deploy.yml asked for the address only');
+    eq(submitted.length, 1, 'then the App\'s form');
+    const manifest = JSON.parse(submitted[0].all((e) => e.tagName === 'INPUT' && e.attrs.type === 'hidden')[0].value);
+    eq(manifest.callback_urls, [`${AUTH_URL}/callback`], 'the App made with its Callback URL already right');
+    const kept = JSON.parse(store.getItem('bdslab.setup.manifest'));
+    eq(kept.callback, `${AUTH_URL}/callback`, 'kept for the way back');
+    // the way back: the Callback URL the App was made with, kept in the lab
+    const r = await S.storeApp(f.api, 'o/lab', await f.api.appFromManifest('c0de'), { callback: kept.callback });
+    ok(r.variables.includes('APP_CALLBACK_URL') && f.st.vars.get('APP_CALLBACK_URL') === `${AUTH_URL}/callback`, JSON.stringify(r));
+  } finally { f.close(); delete globalThis.document.body.append; }
 });
 
 await t('a failure\'s notice offers the way out the page gives it (setOnFail: e.g. more rights), nothing when it gives none or it throws', async () => {
