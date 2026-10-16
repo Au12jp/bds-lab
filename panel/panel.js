@@ -414,12 +414,6 @@ function connectView(body) {
 function setup(body) {
   setupTab(body, { api: st.api, lab: { slug: st.lab.slug, repo: st.lab.repo, role: st.lab.role, secrets: st.lab.secrets, workflows: st.lab.workflows }, hosts: st.hosts, me: st.me, config: CONFIG,
     panelUrl: `${location.origin}${location.pathname}`, signedInWithApp: A.session(st.login)?.kind === 'oauth', storage: TAB, appReturn: APP_RETURN, policy: st.policy, role: st.role,
-    // (「全自動で準備する」's last step: the App's sign-in through the service, back to 「準備」 — it proves the Callback URL)
-    signInWithApp: CONFIG.authUrl ? () => {
-      const nonce = S.newNonce();
-      TAB.setItem(SIGNIN, JSON.stringify({ nonce, remember: true, lab: st.lab.slug, at: Date.now() }));
-      location.assign(S.loginUrl(CONFIG.authUrl, { returnTo: `${location.origin}${location.pathname}#setup`, login: st.me?.login ?? null, nonce }));
-    } : null,
     reload: async () => { await loadEnv(st.lab); if (st.tab === 'setup') render(); }, record: (action, detail) => record(action, detail) });
 }
 function audit(body) { auditTab(body, { api: st.api, lab: st.lab, policy: st.policy, role: st.role, guarded, may }); }

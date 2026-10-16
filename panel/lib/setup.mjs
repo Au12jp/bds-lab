@@ -157,10 +157,12 @@ export const manifestProblems = (m) => ghCheck('appManifest', m, { strictOnly: t
 /** the next step of 「全自動で準備する」 from the checks (pure): what the panel does itself (run a row's fix), the two GitHub
  *  pages only a person can press (make the App, install it), done, or where it stops and why. installed: the person came
  *  back from installing (the token's sign-in cannot see the installation: taken as done) */
-// STRICT: 'done' only when every row of the lab (the lenders' hosts aside: theirs to do) is ✅ — a ❔ (cannot tell) is not done,
-// and neither is a row the panel cannot fix itself: the run stops there and names it, with its link, instead of 「終わりました」.
-// The one ❔ let pass on the way is 「App がラボに入っている」 right after the person came back from installing it (a token's
-// sign-in cannot see installations); the Callback URL step then signs in with the App, which makes it known for real.
+// Input-free: 「全自動で準備する」 never asks the person to type anything. What only typing could set up — the sign-in
+// service (Cloudflare's token and account, or the address of one's own) — is skipped and named as skipped; the panel works
+// without it (people sign in with a token as now). Everything else must be ✅ before 「done」: a row the panel cannot fix
+// stops the run with why and its link. A ❔ for 「App がラボに入っている」 is let pass right after coming back from installing
+// it (a token's sign-in cannot see installations).
+export const SKIPPABLE = Object.freeze(['deploy', 'auth', 'callback']);
 export function autoNext(cs, { installed = false } = {}) {
   const all = cs ?? [], by = Object.fromEntries(all.map((c) => [c.key, c]));
   const runnable = (c) => c && c.ok !== true && typeof c.fix?.run === 'function' && !(c.fix.inputs ?? []).length;
@@ -168,22 +170,16 @@ export function autoNext(cs, { installed = false } = {}) {
   if (by.pages && by.pages.ok !== true) return runnable(by.pages) ? { kind: 'run', key: 'pages' } : stop(by.pages);
   if (by.app && by.app.ok === null) return stop(by.app);
   if (by.app && by.app.ok === false) return by.app.fix?.manifest ? { kind: 'app' } : stop(by.app);
-  if (by.installed && by.installed.ok === false && !installed) return { kind: 'install' };
-  if (by.installed && by.installed.ok === null && !installed) return { kind: 'install' };
-  if (by.deploy && by.deploy.ok !== true) {
-    if (runnable(by.deploy)) return { kind: 'run', key: 'deploy' };
-    // (Cloudflare's token and account are what only the person has: asked for by name, never passed over as 「done」)
-    if ((by.deploy.fix?.inputs ?? []).some((i) => i.name === 'token')) return { kind: 'cloudflare', key: 'deploy', why: by.deploy.need };
-    return stop(by.deploy);
-  }
+  if (by.installed && by.installed.ok !== true && !installed) return { kind: 'install' };
+  // (the sign-in service: done by the panel itself when it can be — Cloudflare's keys already in, or the page told again —
+  // never by asking for anything)
+  if (by.deploy && by.deploy.ok !== true && runnable(by.deploy)) return { kind: 'run', key: 'deploy' };
   if (by.deploy && by.deploy.ok === true && by.deploy.fix?.run && !(by.auth?.ok === true)) return { kind: 'run', key: 'deploy' };
-  if (by.auth && by.auth.ok !== true) return runnable(by.auth) ? { kind: 'run', key: 'auth' } : stop(by.auth);
-  // (the App's own settings on GitHub, after the service: the sign-in works without them; the run still stops there)
-  if (by['app-perms'] && by['app-perms'].ok !== true) return stop(by['app-perms']);
-  if (by.callback && by.callback.ok !== true) return { kind: 'callback', key: 'callback', link: by.callback.fix?.link ?? null };
-  const left = all.filter((c) => c.ok !== true && !c.key.startsWith('host:') && !(c.key === 'installed' && installed && c.ok === null));
+  if (by.auth && by.auth.ok !== true && runnable(by.auth)) return { kind: 'run', key: 'auth' };
+  const skipped = all.filter((c) => SKIPPABLE.includes(c.key) && c.ok !== true).map((c) => c.label);
+  const left = all.filter((c) => c.ok !== true && !c.key.startsWith('host:') && !SKIPPABLE.includes(c.key) && !(c.key === 'installed' && installed && c.ok === null));
   if (left.length) return stop(left[0]);
-  return { kind: 'done' };
+  return { kind: 'done', skipped };
 }
 export async function deployAuth(api, slug, { ref = 'main', cf = null, me, sleep = sleeper, every = 10_000, timeoutMs = 15 * 60_000, onStep = () => {} } = {}) {
   if (!LOGIN.test(String(me ?? ''))) throw new Error('始める人（GitHub のログイン名）が分かりません: サインインし直してください');

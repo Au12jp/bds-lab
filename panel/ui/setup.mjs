@@ -42,43 +42,21 @@ const AUTO_KEY = 'bdslab.setup.auto';
 const autoGet = (ctx) => { try { const a = JSON.parse((ctx.storage ?? globalThis.sessionStorage).getItem(AUTO_KEY) ?? 'null'); return a?.lab === ctx.lab.slug && Date.now() - Number(a.at) < 3_600_000 ? a : null; } catch { return null; /* not ours: no run going on */ } };
 const autoSet = (ctx, v) => { const st = ctx.storage ?? globalThis.sessionStorage; if (v) st.setItem(AUTO_KEY, JSON.stringify({ ...v, lab: ctx.lab.slug, at: Date.now() })); else st.removeItem(AUTO_KEY); };
 const autoOn = (ctx) => Boolean(autoGet(ctx));
-let autoSay = null, autoCf = null;
+let autoSay = null;
 function autoCard(ctx, draw) {
-  const token = h('input', { type: 'password', autocomplete: 'off', placeholder: '（サインインのサービスに要ります）', 'aria-label': 'Cloudflare の API トークン' });
-  const account = h('input', { type: 'text', autocomplete: 'off', placeholder: '0123456789abcdef0123456789abcdef', 'aria-label': 'Cloudflare のアカウント ID' });
   const say = h('div', { class: 'muted', role: 'status' });
   autoSay = say;
+  // (nothing to type: the button alone; what only typing could set up is skipped and said)
   const go = h('button', { class: 'primary', onclick: async () => {
-    const cf = { token: token.value.trim(), account: account.value.trim() };
-    if ((cf.token || cf.account) && S.cfProblem(cf)) return toast(S.cfProblem(cf), true);
     go.disabled = true;
-    const ok = await act(async () => {
-      if (cf.token) { await ctx.api.putSecret(ctx.lab.slug, 'CLOUDFLARE_API_TOKEN', cf.token); await ctx.api.putSecret(ctx.lab.slug, 'CLOUDFLARE_ACCOUNT_ID', cf.account); ctx.lab.secrets = [...new Set([...(ctx.lab.secrets ?? []), 'CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'])]; say.replaceChildren('Cloudflare の鍵を封じて登録しました'); }
-      return true;
-    });
-    // (what was typed leaves the page: sealed and sent, or refused)
-    token.value = ''; account.value = '';
-    go.disabled = false;
-    if (!ok) return;
-    // (a run started again keeps what it already knows: the App installed on this visit's way back)
-    autoSet(ctx, { stage: 'go', installed: Boolean(autoGet(ctx)?.installed) || Boolean(lastInstalled.get(ctx.lab.slug)) });
-    await autoRun(ctx, draw);
+    try {
+      autoSet(ctx, { stage: 'go', installed: Boolean(autoGet(ctx)?.installed) || Boolean(lastInstalled.get(ctx.lab.slug)) });
+      await autoRun(ctx, draw);
+    } finally { go.disabled = false; }
   } }, '全自動で準備する');
-  // (a role the policy does not let put secrets: no Cloudflare field — what it could not send)
-  const cfOk = !notAllowed(ctx, { needs: ['secrets.put'] });
-  const cfBox = cfOk ? h('details', {}, h('summary', {}, '「GitHub でサインイン」に要る Cloudflare（無料）'),
-    h('p', { class: 'muted' }, 'サインインのサービスは Cloudflare に置きます。API トークン（テンプレート「Edit Cloudflare Workers」）とアカウント ID を入れて押すと、App・サービス・ページまで全部やります。空のまま押すと、Cloudflare の手前で止まり、ここを開いて待ちます。'),
-    h('details', {}, h('summary', {}, 'Cloudflare を持っていないとき（無料・5 分）'),
-      h('ol', {},
-        h('li', {}, 'dash.cloudflare.com を開き「Sign up」→「Sign up with GitHub」: いま GitHub に入っていれば、GitHub の確認を 1 回押すだけで、無料で作れます（カードもパスワードも要りません）。'),
-        h('li', {}, '左の「Workers & Pages」を一度開き、workers.dev の名前を決めます（好きな英小文字で）。これをしないと置けません。'),
-        h('li', {}, '右上の人の形 → 「My Profile」→「API Tokens」→「Create Token」→ テンプレート「Edit Cloudflare Workers」の「Use template」→ そのまま下の「Continue to summary」→「Create Token」。出てきた長い文字列を写して、下の「API トークン」に。'),
-        h('li', {}, '「Workers & Pages」の画面の右側にある「Account ID」（32 文字）を写して、下の「アカウント ID」に。'))),
-    h('label', {}, 'Cloudflare の API トークン'), token, h('label', {}, 'Cloudflare のアカウント ID'), account) : null;
-  autoCf = cfBox ? { box: cfBox, token } : null;
   return h('div', { class: 'card' }, h('h3', {}, '⚡ 全自動で準備する'),
-    h('p', { class: 'muted' }, 'このボタンを押すと、パネルができることを上から順に全部やり、全部の行が ✅ になるまで止まりません（止まるときは、どこで・なぜ・次に押すものを言います）。あなたが押すのは GitHub の画面のボタンだけ（「Create GitHub App」「Install」「Save changes」と、最後のサインイン）。戻ってくると続きを自動でやります。'),
-    cfBox, h('div', { class: 'row' }, go), say);
+    h('p', { class: 'muted' }, '入力は何も要りません。押すと、パネルができることを上から順に全部やります。入力が要るもの（「GitHub でサインイン」用のサービス）は飛ばし、今と同じトークンで入れるままにします。あなたが押すのは GitHub の画面の「Create GitHub App」と「Install」だけで、戻ってくると続きを自動でやります。'),
+    h('div', { class: 'row' }, go), say);
 }
 /** one step after another until GitHub needs the person (it leaves the page), it is truly done, or it stops and says why;
  *  at most 12 steps a visit */
@@ -146,35 +124,16 @@ async function autoSteps(ctx0, draw0) {
       (ctx.location ?? globalThis.location).assign(to);
       return;
     }
-    if (next.kind === 'cloudflare') {
-      autoSet(ctx, null);
-      if (autoCf) { autoCf.box.open = true; autoCf.token.focus?.(); }
-      return say('⏸ ここから先（「GitHub でサインイン」のサービス）は Cloudflare の API トークンとアカウント ID が要ります: 上の欄に入れて、もう一度「全自動で準備する」を押すと続きから全部やります');
-    }
-    if (next.kind === 'callback') {
-      const url = `${ctx.config?.authUrl}/callback`;
-      if (a.stage === 'callback' && ctx.signedInWithApp === false && a.tried) return halt('App でサインインできませんでした: App の設定の Callback URL が下のものと一字一句同じか、「Expire user authorization tokens」が有効かを確かめ、もう一度', [callbackKit(ctx, url, next.link)]);
-      autoSet(ctx, { ...a, stage: 'callback' });
-      return say('👉 最後の 1 つ: App の設定の「Callback URL」に下の URL を入れて「Save changes」→ 戻って「App でサインインして確かめる」。サインインできたら、残りの確認を自動でやって終わります', [callbackKit(ctx, url, next.link)]);
-    }
     if (next.kind === 'stop') {
       const c = cs.find((x) => x.key === next.key);
       return halt(`${c?.label ?? next.key} — ${next.why}`, next.link ? [h('div', { class: 'row' }, link(next.link, next.linkLabel ?? 'GitHub へ'))] : []);
     }
     // (done: every row ✅ — said only now)
     autoSet(ctx, null); lastInstalled.delete(ctx.lab.slug);
-    return say('✅ 準備はすべて終わりました（全部の行が ✅）: 「GitHub でサインイン」が使えます');
+    return say(next.skipped?.length ? `✅ 準備はすべて終わりました（入力が要るので飛ばしたもの: ${next.skipped.join('・')}。今と同じトークンで入れます）` : '✅ 準備はすべて終わりました（全部の行が ✅）');
   }
   halt('同じことを 12 回繰り返したので止めました: 下の ⚠️ の行を見てください');
 }
-/** the Callback URL to copy, the App's settings, and the sign-in that proves it */
-function callbackKit(ctx, url, settings) {
-  return h('div', {},
-    h('div', { class: 'row' }, h('code', {}, url), h('button', { onclick: () => act(() => globalThis.navigator.clipboard.writeText(url), 'Callback URL をコピーしました') }, 'コピー')),
-    h('div', { class: 'row' }, settings ? link(settings, 'App の設定を開く（GitHub へ）') : null,
-      typeof ctx.signInWithApp === 'function' ? h('button', { class: 'primary', onclick: () => { const a = autoGet(ctx); autoSet(ctx, { ...(a ?? {}), stage: 'callback', tried: true }); ctx.signInWithApp(); } }, 'App でサインインして確かめる') : h('span', { class: 'muted' }, '（サインインの画面から「GitHub でサインイン」で入り直してください）')));
-}
-
 const roleName = (r) => (typeof r === 'string' ? r : r?.name ?? (r?.names?.length ? `${r.names.join(' か ')}（チームが読めません）` : 'なし'));
 /** why this person may not use a fix (words), null when they may: the lab's administrator on GitHub, and the policy's role
  *  allows each thing the fix does (its needs) */

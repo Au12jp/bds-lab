@@ -517,7 +517,7 @@ await t('the 「準備」 tab and the policy: a fix only for a GitHub administra
   } finally { f.close(); }
 });
 
-await t('全自動で準備する: the next step from the checks (pure), the lab chosen on the App\'s install page, Cloudflare\'s fields checked before anything is sent; on the tab: Pages turned on by itself, then the App\'s form sent to GitHub, the stage kept for the way back; back from GitHub: the install page with the lab chosen (fake DOM, fake GitHub)', async () => {
+await t('全自動で準備する: the next step from the checks (pure), the lab chosen on the App\'s install page, nothing to type; on the tab: Pages turned on by itself, then the App\'s form sent to GitHub, the stage kept for the way back; back from GitHub: the install page with the lab chosen, then done with the sign-in service skipped (fake DOM, fake GitHub)', async () => {
   const R = (key, ok, fix = null, extra = {}) => ({ key, label: key, ok, need: ok === true ? '' : `${key} needed`, fix, ...extra });
   const run = { run: async () => 'done' };
   eq(S.autoNext([R('pages', false, run), R('app', false, { manifest: true })]), { kind: 'run', key: 'pages' }, 'Pages first');
@@ -525,16 +525,14 @@ await t('全自動で準備する: the next step from the checks (pure), the lab
   eq(S.autoNext([R('pages', true), R('app', null)]).kind, 'stop', 'variables not readable: stop, with why');
   eq(S.autoNext([R('pages', true), R('app', true), R('installed', null)]), { kind: 'install' }, 'then install it');
   eq(S.autoNext([R('pages', true), R('app', true), R('installed', null), R('deploy', true, run), R('auth', false)], { installed: true }), { kind: 'run', key: 'deploy' }, 'back from installing: the service, Cloudflare\'s keys in');
-  // STRICT: never 「done」 while any row of the lab is not ✅
-  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('deploy', false, { ...run, inputs: [{ name: 'token' }] }), R('auth', false)]), { kind: 'cloudflare', key: 'deploy', why: 'deploy needed' }, 'no Cloudflare keys: asked for, not done');
-  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('auth', false, { inputs: [{ name: 'url' }], run })]).kind, 'stop', 'a service only a person can name: stop, not done');
-  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('auth', false, run)]), { kind: 'run', key: 'auth' }, 'the page told to learn the address: run');
-  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('auth', true), R('callback', null, { link: 'https://github.com/settings/apps/lab-o' })]), { kind: 'callback', key: 'callback', link: 'https://github.com/settings/apps/lab-o' }, 'the Callback URL unproven: the App\'s sign-in, not done');
-  eq(S.autoNext([R('pages', true), R('app', true), R('installed', null), R('auth', true), R('callback', null)], { installed: true }).kind, 'callback', 'back from installing: on to the callback');
+  // input-free: what only typing could set up (the sign-in service) is skipped and named; everything else must be ✅
+  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('deploy', false, { ...run, inputs: [{ name: 'token' }] }), R('auth', false, { ...run, inputs: [{ name: 'url' }] })]), { kind: 'done', skipped: ['deploy', 'auth'] }, 'no Cloudflare keys: skipped, nothing asked');
+  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('auth', false, run)]), { kind: 'run', key: 'auth' }, 'what the panel can do alone about the service, it does');
+  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('auth', true), R('callback', null)]), { kind: 'done', skipped: ['callback'] }, 'the Callback URL: skipped, not asked');
   eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('app-perms', false, { link: 'https://x/permissions', label: 'p' })]), { kind: 'stop', key: 'app-perms', why: 'app-perms needed', link: 'https://x/permissions', linkLabel: 'p' }, 'the App\'s permissions short: stop with the link');
-  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('auth', true), R('callback', true), R('workflows', false)]).key, 'workflows', 'any row left: stop there');
-  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('auth', true), R('callback', true), R('workflows', null)]).kind, 'stop', 'a ❔ is not done');
-  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('auth', true), R('callback', true), R('workflows', true), R('host:l/h', false)]), { kind: 'done' }, 'every row ✅ (a lender\'s host is theirs): done');
+  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('workflows', null)]).kind, 'stop', 'a ❔ that is not skippable is not done');
+  eq(S.autoNext([R('pages', true), R('app', true), R('installed', null)], { installed: true }), { kind: 'done', skipped: [] }, 'back from installing: done');
+  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('workflows', true), R('host:l/h', false)]), { kind: 'done', skipped: [] }, 'a lender\'s host is theirs');
   eq(S.autoNext([R('pages', false, { link: 'https://github.com/o/lab/settings/pages' })]).kind, 'stop', 'Pages that only GitHub\'s page turns on: stop');
   eq(S.installLink('lab-o', 11, 22), 'https://github.com/apps/lab-o/installations/new/permissions?suggested_target_id=11&repository_ids[]=22');
   eq(S.installLink('lab-o'), 'https://github.com/apps/lab-o/installations/new', 'no ids: the plain page');
@@ -553,61 +551,27 @@ await t('全自動で準備する: the next step from the checks (pure), the lab
     await UI.setupTab(body, ctx);
     const go = body.all((e) => e.tagName === 'BUTTON' && e.textContent === '全自動で準備する')[0];
     ok(go, 'the button for the lab\'s administrator');
-    const [tok, acct] = body.all((e) => e.tagName === 'INPUT' && /Cloudflare/.test(e.attrs['aria-label'] ?? ''));
-    tok.value = 'short'; acct.value = 'x';
+    ok(!body.all((e) => e.tagName === 'INPUT').filter((e) => !e.parent || true).some((e) => /Cloudflare/.test(e.attrs['aria-label'] ?? '')), 'nothing to type on the card');
     await go.click();
-    ok(!f.st.secrets.size && !store.getItem('bdslab.setup.auto'), 'a wrong Cloudflare token: nothing sent, nothing started');
-    tok.value = CF_TOKEN; acct.value = CF_ACCOUNT;
-    await go.click();
-    ok(f.open('CLOUDFLARE_API_TOKEN') === CF_TOKEN && f.open('CLOUDFLARE_ACCOUNT_ID') === CF_ACCOUNT && tok.value === '' && acct.value === '', 'Cloudflare\'s keys sealed and sent, the fields emptied');
     ok(f.st.pages?.build_type === 'workflow', `Pages turned on by itself: ${JSON.stringify(f.st.pages)}`);
     ok(submitted.length === 1 && /^https:\/\/github\.com\/settings\/apps\/new\?state=/.test(submitted[0]) && JSON.parse(store.getItem('bdslab.setup.auto')).stage === 'app' && store.getItem('bdslab.setup.manifest'), `then the App's form to GitHub, its state and the stage kept: ${submitted}`);
     ok(/Create GitHub App/.test(body.textContent), 'what to press on GitHub, said');
     // back from GitHub with the App made (its slug in the variables): the install page, the lab chosen
     f.st.vars.set('APP_ID', '5'); f.st.vars.set('APP_SLUG', 'lab-o'); f.st.vars.set('APP_CLIENT_ID', 'Iv1.x');
-    ctx.lab.secrets = ['APP_PRIVATE_KEY', 'APP_CLIENT_SECRET', 'AUTH_STATE_SECRET', 'CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'];
+    f.st.appPerms = { ...f.st.appPerms, administration: 'write' };
+    ctx.lab.secrets = ['APP_PRIVATE_KEY', 'APP_CLIENT_SECRET', 'AUTH_STATE_SECRET'];
     await UI.setupTab(new E('div'), ctx);
     eq(went, ['https://github.com/apps/lab-o/installations/new/permissions?suggested_target_id=11&repository_ids[]=22'], 'to the install page with the lab chosen');
     eq(JSON.parse(store.getItem('bdslab.setup.auto')).installed, true, 'that it went to install, kept');
-    // back from installing (a token's sign-in cannot see it): the service put on Cloudflare, then the page and the service
-    // waited for — never 「✅」 before the page knows the address and the service answers — and the page loaded again
-    const reloaded = [], live = { config: null };
-    const fetchImpl = async (url) => {
-      if (/config\.json/.test(url)) return { ok: true, json: async () => ({ authUrl: live.config }) };
-      if (String(url) === `${AUTH_URL}/health`) return { ok: true, json: async () => ({ ok: true, clientId: 'Iv1.x', panels: ['https://o.github.io/lab/'] }) };
-      return f.fetchImpl(url);
-    };
-    let looks = 0;
-    const autoAgain = () => store.setItem('bdslab.setup.auto', JSON.stringify({ stage: 'go', installed: true, lab: 'o/lab', at: Date.now() }));
-    const waitCtx = { ...ctx, fetchImpl, wait: { ...QUICK, timeoutMs: 1000, sleep: async () => { if (++looks === 3) live.config = AUTH_URL; } }, reloadPage: () => reloaded.push(1) };
+    // back from installing: done, the sign-in service skipped (no keys typed), nothing started for it
     const b3 = new E('div');
-    await UI.setupTab(b3, waitCtx);
-    eq(f.st.vars.get('LAB_AUTH_URL'), AUTH_URL, 'the service\'s address kept');
-    ok(reloaded.length === 1 && looks >= 3, `the page loaded again only once the page knew the address: ${looks}`);
-    ok(!/準備はすべて終わりました/.test(b3.textContent), `not 「done」 before the Callback URL is proven: ${b3.textContent}`);
-    // loaded again with the address: the last step is the Callback URL — its URL to copy, the App's settings, the sign-in
-    const signed = [];
-    // (an App made before administration was asked for: the run stops there and links its Permissions — then on)
-    const b35 = new E('div');
-    await UI.setupTab(b35, { ...waitCtx, config: { authUrl: AUTH_URL, appSlug: 'lab-o', appClientId: 'Iv1.x' } });
-    ok(/⛔ 止まりました: App の権限/.test(b35.textContent) && /administration: write/.test(b35.textContent) && !store.getItem('bdslab.setup.auto'), b35.textContent.slice(0, 600));
-    f.st.appPerms = { ...f.st.appPerms, administration: 'write' };
-    autoAgain();
-    const b4 = new E('div');
-    await UI.setupTab(b4, { ...waitCtx, config: { authUrl: AUTH_URL, appSlug: 'lab-o', appClientId: 'Iv1.x' }, signInWithApp: () => signed.push(1) });
-    ok(b4.textContent.includes(`${AUTH_URL}/callback`) && /Callback URL/.test(b4.textContent) && !/準備はすべて終わりました/.test(b4.textContent), `the Callback URL step: ${b4.textContent}`);
-    ok(b4.all((e) => e.tagName === 'A' && e.attrs.href === 'https://github.com/settings/apps/lab-o').length >= 1, 'the App\'s settings linked');
-    await b4.all((e) => e.tagName === 'BUTTON' && e.textContent === 'App でサインインして確かめる')[0].click();
-    eq(signed.length, 1, 'the App\'s sign-in started');
-    // back signed in with the App, installed on the lab: every row ✅ — only now done
-    f.st.installs = [{ id: 7, app_slug: 'lab-o' }]; f.st.instRepos = { 7: ['o/lab'] };
-    const b5 = new E('div');
-    await UI.setupTab(b5, { ...waitCtx, config: { authUrl: AUTH_URL, appSlug: 'lab-o', appClientId: 'Iv1.x' }, signedInWithApp: true });
-    ok(/✅ 準備はすべて終わりました/.test(b5.textContent) && !store.getItem('bdslab.setup.auto'), `done, and only now: ${b5.textContent}`);
+    await UI.setupTab(b3, ctx);
+    ok(/✅ 準備はすべて終わりました（入力が要るので飛ばしたもの: .*サインインのサービス/.test(b3.textContent) && !store.getItem('bdslab.setup.auto'), b3.textContent.slice(0, 900));
+    ok(!f.st.seen.some((x) => /auth-deploy\.yml\/dispatches/.test(x.u)), 'nothing started for the service');
   } finally { f.close(); delete globalThis.document.body.append; }
 });
 
-await t('全自動で準備する is strict: Cloudflare missing pauses with the field opened (never 「done」); a failed auth-deploy.yml says Cloudflare\'s own reason; waiting for the page and the service times out in words; auth-deploy.yml refuses to put a half-made service and checks /health (fake DOM, fake GitHub)', async () => {
+await t('全自動で準備する: a failed auth-deploy.yml says Cloudflare\'s own reason; waiting for the page and the service times out in words; auth-deploy.yml refuses to put a half-made service and checks /health (fake DOM, fake GitHub)', async () => {
   // a failed run: its words, not just 「failure」
   const f = await fakeGitHub({ deployConclusion: 'failure' });
   try {
@@ -621,20 +585,6 @@ await t('全自動で準備する is strict: Cloudflare missing pauses with the 
   await throws(() => S.waitLive({ fetchImpl: down, ...QUICK }), /ok と答えません（HTTP 502）/, 'the service');
   const other = async (url) => (/config\.json/.test(url) ? { ok: true, json: async () => ({ authUrl: 'https://old.example' }) } : { ok: true, json: async () => ({ ok: true }) });
   await throws(() => S.waitLive({ want: AUTH_URL, fetchImpl: other, ...QUICK }), /サービスの URL が入りません/, 'an old address is not the new one');
-  // the tab: the App installed, no Cloudflare keys → paused with the field opened, nothing claimed done
-  const { E } = fakeDom();
-  const UI = await imp('panel/ui/setup.mjs');
-  const g = await fakeGitHub({ pages: { build_type: 'workflow' }, vars: { APP_ID: '5', APP_SLUG: 'lab-o', APP_CLIENT_ID: 'Iv1.x' } });
-  try {
-    g.st.appPerms = { ...g.st.appPerms, administration: 'write' };
-    const store = AC.memoryStorage();
-    store.setItem('bdslab.setup.auto', JSON.stringify({ stage: 'go', installed: true, lab: 'o/lab', at: Date.now() }));
-    const b = new E('div');
-    await UI.setupTab(b, { api: g.api, lab: LAB({ secrets: ['APP_PRIVATE_KEY', 'APP_CLIENT_SECRET', 'AUTH_STATE_SECRET'] }), hosts: [], me: { login: 'o' }, config: {}, panelUrl: 'https://o.github.io/lab/', signedInWithApp: false, fetchImpl: g.fetchImpl, storage: store, location: { search: '', hash: '#setup', pathname: '/lab/', assign() {} }, history: { replaceState() {} } });
-    ok(/⏸ ここから先.*Cloudflare の API トークンとアカウント ID が要ります/.test(b.textContent) && !/終わりました/.test(b.textContent), b.textContent.slice(-400));
-    ok(b.all((e) => e.tagName === 'DETAILS')[0].open === true, 'the Cloudflare field opened');
-    ok(!g.st.seen.some((x) => /dispatches/.test(x.u)), 'nothing started without the keys');
-  } finally { g.close(); }
   // the workflow: a half-made service never put in place; Cloudflare's refusals in words; /health before the address
   const y = fs.readFileSync(path.join(TOP, '.github/workflows/auth-deploy.yml'), 'utf8');
   const before = y.indexOf('App のものが足りません'), deploy = y.indexOf('$W deploy');
