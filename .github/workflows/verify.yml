@@ -1,0 +1,317 @@
+name: verify
+# every push: the units this commit needs — an offline test, a workflow step, a part of the real server — and nothing else. The
+# plan (common/verify-plan.mjs) remembers what each unit read when it last passed (the memory: the artifact verify-state, written
+# by the state job; common/deps.mjs records the reads) and runs a unit again only when the content of one of those files changed,
+# when it is new or failed last time: the same content is never verified twice (a merge of what passed, a revert, a push that
+# touched the panel alone runs only what reads the panel). The run's summary says what runs and why.
+# The real server (bds) runs at the end of a pull request, not on each push: a commit title (its first line) with [bds], by hand
+# (Run workflow), a push to the default branch, or the nightly run — the other pushes list what waits. Nightly: also what has not
+# passed for a week, so every unit runs at least weekly. By hand with full, or [full ci] in the title: everything, macOS too, and
+# Endstone (Linux) and LeviLamina (Windows) — a macOS minute counts as 10 and a Windows one as 2 on a private repository.
+# (hashFiles is not allowed in a job's `if`: there it made the whole file invalid and no job ever ran; it is a step now)
+on:
+  push:
+    # (a pack the panel's 「アドオン」 takes in waits on a branch of its own, lab-incoming/<name>, for unit.yml: nothing to verify)
+    branches: ['**', '!lab-incoming/**']
+    # the autopilot's memory alone (auto/: a ledger row after each task, failed ones too, every hour) is no code to verify: each such
+    # push used to start the whole verify run
+    paths-ignore: ['auto/**']
+  pull_request:
+    paths-ignore: ['auto/**']
+  workflow_dispatch:
+    inputs:
+      full:
+        description: 'すべて（macOS・Endstone・LeviLamina も）。空なら計画どおり（本物の BDS も、読んだファイルが変わったものだけ）'
+        type: boolean
+        default: false
+  schedule:
+    # every night (JST 03:23): the real server's units that changed, and every unit not passed for a week
+    - cron: '23 18 * * *'
+# least privilege: CI only reads the repository
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+# a pull request from a branch of this repository is already verified by that branch's push: only a fork's runs here
+jobs:
+  plan:
+    # which units this run needs, from the memory of the newest trusted run (actions: read: its artifacts) and HEAD's tree
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      offline: ${{ steps.plan.outputs.offline }}
+      tests: ${{ steps.plan.outputs.tests }}
+      eslint: ${{ steps.plan.outputs.eslint }}
+      smoke: ${{ steps.plan.outputs.smoke }}
+      browser: ${{ steps.plan.outputs.browser }}
+      bds: ${{ steps.plan.outputs.bds }}
+      bdsparts: ${{ steps.plan.outputs.bdsparts }}
+      addons: ${{ steps.plan.outputs.addons }}
+      extra: ${{ steps.plan.outputs.extra }}
+      offmatrix: ${{ steps.plan.outputs.offmatrix }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with: { node-version: 22 }
+      - id: plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node common/verify-plan.mjs
+
+  offline:
+    # the offline tests the plan names (all three labs end to end against fake servers, the panel, the AI's tools …), side by side
+    # on one runner, the longest first; the ones that share the lab folder each in a copy of their own (common/run-tests.mjs).
+    # Each recorded (--record: what it read, for the memory). ESLint, the GitHub flows and the real browser are units too.
+    # macos-latest (full only) runs the lab itself natively on macOS (GitHub's macOS runners have no Docker: the container path
+    # is the fake); its results are not kept (another machine)
+    # The plan's runners (offmatrix): Linux on one, or on two with a list each when the tests are long together (offlineSplit:
+    # by what each took last time); macOS (full only) the whole list
+    needs: plan
+    if: needs.plan.outputs.offline == 'true'
+    name: offline (${{ matrix.os }} ${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.offmatrix) }}
+    runs-on: ${{ matrix.os }}
+    # (the app lab's fake device alone is ~8 minutes on 4 cores; a private repository's runner has 2)
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with: { node-version: 22 }
+      - if: matrix.tests != ''
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with: { python-version: '3.12' }
+      - if: matrix.tests != ''
+        run: npm i -g esbuild@0.28 typescript@6.0.3
+      # (the lab's starting point, .lab-base.json: the first `node lab.mjs` in a fresh checkout reads every file to make it — made
+      # here, before anything is recorded, or the first unit would look as if it had read the whole lab)
+      - run: node lab.mjs help > /dev/null
+      # Runner 1's steps, units of their own, started here beside the offline tests below and each waited for after them (its own
+      # step says how it ended): ESLint — real bugs, not style: names that do not exist, values computed and never used, code that
+      # cannot run (tests/eslint.config.mjs; it reads every script, so any script's change runs it again); the GitHub flows (fake gh);
+      # the management panel (panel/) in a real headless Chrome, GitHub's API stood in for by routes: who is locked out, what each
+      # person may do, a secret sealed in the page, the live device driven, a lender stopping (a minute and a half of its own)
+      - name: ESLint, the GitHub flows and the real browser, started beside the offline tests
+        if: matrix.os == 'ubuntu-latest' && matrix.shard == 1
+        env:
+          ESLINT: ${{ needs.plan.outputs.eslint }}
+          SMOKE: ${{ needs.plan.outputs.smoke }}
+          BROWSER: ${{ needs.plan.outputs.browser }}
+        run: |
+          # (its pid kept: the step that waits for it sees it gone without a result, and stops waiting — it waited forever once)
+          beside() { name=$1; shift; ("$@" > "$RUNNER_TEMP/$name.log" 2>&1; echo $? > "$RUNNER_TEMP/$name.code") < /dev/null > /dev/null 2>&1 & echo $! > "$RUNNER_TEMP/$name.pid"; }
+          if [ "$ESLINT" = true ]; then beside eslint node common/deps.mjs run step:eslint --results "$RUNNER_TEMP/results/steps.jsonl" -- npx --yes eslint@9 -c tests/eslint.config.mjs .; fi
+          if [ "$SMOKE" = true ]; then beside smoke node common/deps.mjs run step:github-smoke --results "$RUNNER_TEMP/results/steps.jsonl" -- node bds/bench/github-smoke.mjs; fi
+          if [ "$BROWSER" = true ]; then beside browser node common/deps.mjs run tests/panel-browser.mjs --results "$RUNNER_TEMP/results/steps.jsonl" -- node tests/panel-browser.mjs; fi
+      # the gate the autopilot keeps an engine change by and `share` checks a release with (common/auto-guard.mjs), and the rest — the
+      # three labs end to end, the real player's packets, NetherNet, the environment, the app lab, latest, maint, upkeep, login, lan:
+      # the ones the plan names. A result line as each one ends (a run cancelled keeps what ended)
+      - name: the offline tests the plan names
+        if: matrix.tests != ''
+        env:
+          # (this runner's list; all of them: needs.plan.outputs.tests)
+          TESTS: ${{ matrix.tests }}
+          # (the vendored nethernet-connect present: its test must run; absent: it says SKIP, and the warning below says why)
+          LAB_REQUIRE_LAN: ${{ hashFiles('common/nethernet-connect/dist/src/index.js') != '' && '1' || '0' }}
+          # 6 at a time on Linux's 4 cores: most of a test is waiting, and app-offline and offline.mjs now run as parts
+          LAB_GATE_JOBS: ${{ runner.os == 'Linux' && '6' || '' }}
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then node lab.mjs auto gate --tests "$TESTS" --record --results "$RUNNER_TEMP/results/offline.jsonl"
+          else node lab.mjs auto gate --tests "$TESTS"; fi
+      - name: ESLint
+        if: matrix.os == 'ubuntu-latest' && matrix.shard == 1 && needs.plan.outputs.eslint == 'true'
+        run: while [ ! -f "$RUNNER_TEMP/eslint.code" ]; do if ! kill -0 "$(cat "$RUNNER_TEMP/eslint.pid" 2>/dev/null || echo 0)" 2>/dev/null && [ ! -f "$RUNNER_TEMP/eslint.code" ]; then echo "::error title=eslint::stopped without a result"; tail -200 "$RUNNER_TEMP/eslint.log"; exit 1; fi; if [ "$SECONDS" -ge 900 ]; then echo "::error title=eslint::no result after 900 s"; tail -200 "$RUNNER_TEMP/eslint.log"; ps -ef --forest | tail -80; exit 1; fi; sleep 2; done; cat "$RUNNER_TEMP/eslint.log"; exit "$(cat "$RUNNER_TEMP/eslint.code")"
+      - name: GitHub flows (fake gh)
+        if: matrix.os == 'ubuntu-latest' && matrix.shard == 1 && needs.plan.outputs.smoke == 'true'
+        run: while [ ! -f "$RUNNER_TEMP/smoke.code" ]; do if ! kill -0 "$(cat "$RUNNER_TEMP/smoke.pid" 2>/dev/null || echo 0)" 2>/dev/null && [ ! -f "$RUNNER_TEMP/smoke.code" ]; then echo "::error title=smoke::stopped without a result"; tail -200 "$RUNNER_TEMP/smoke.log"; exit 1; fi; if [ "$SECONDS" -ge 1200 ]; then echo "::error title=smoke::no result after 1200 s"; tail -200 "$RUNNER_TEMP/smoke.log"; ps -ef --forest | tail -80; exit 1; fi; sleep 2; done; cat "$RUNNER_TEMP/smoke.log"; exit "$(cat "$RUNNER_TEMP/smoke.code")"
+      - name: management panel (real browser)
+        if: matrix.os == 'ubuntu-latest' && matrix.shard == 1 && needs.plan.outputs.browser == 'true'
+        run: while [ ! -f "$RUNNER_TEMP/browser.code" ]; do if ! kill -0 "$(cat "$RUNNER_TEMP/browser.pid" 2>/dev/null || echo 0)" 2>/dev/null && [ ! -f "$RUNNER_TEMP/browser.code" ]; then echo "::error title=browser::stopped without a result"; tail -200 "$RUNNER_TEMP/browser.log"; exit 1; fi; if [ "$SECONDS" -ge 1500 ]; then echo "::error title=browser::no result after 1500 s"; tail -200 "$RUNNER_TEMP/browser.log"; ps -ef --forest | tail -80; exit 1; fi; sleep 2; done; cat "$RUNNER_TEMP/browser.log"; exit "$(cat "$RUNNER_TEMP/browser.code")"
+      - if: matrix.os == 'ubuntu-latest' && contains(matrix.tests, 'tests/lan-offline.mjs') && hashFiles('common/nethernet-connect/dist/src/index.js') == ''
+        run: echo "::warning title=lan-offline not run::common/nethernet-connect/dist is not in this repository - vendor it from the nethernet-connect project (node scripts/vendor.mjs <this lab>), then lan and its test run here"
+      # (what passed and what each read: the state job puts it in the memory; kept a day)
+      - name: results for the memory
+        if: always() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: 'verify-results-offline-${{ matrix.shard }}', path: '${{ runner.temp }}/results/', retention-days: 1, if-no-files-found: ignore }
+
+  bds:
+    # the real server's parts the plan names, each on its own runner side by side: bench — the bench's selftest; scratch — the
+    # from-scratch lessons, 3 at once; dev — the AI tools' story with a real client; play — the app lab's game verbs on the
+    # server (about 10 s: after a short part on its runner, 'addons+play'; each part of a runner runs whatever the one before
+    # it did); addons — the addons whose reads changed, 3 at once (a `test` while another runs gets its own server). Each recorded
+    needs: plan
+    if: needs.plan.outputs.bds == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        part: ${{ fromJSON(needs.plan.outputs.bdsparts) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults: { run: { working-directory: bds } }
+    # the same unmodified server with its clock 4 times as fast (libfaketime): the lab counts its pauses and `wait`s in the
+    # server's ticks, so a test takes about half the time or less and means the same (bds/docs/SPEC.md 早回し)
+    env: { LAB_SPEED: '4' }
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with: { node-version: 22 }
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: bds/.lab
+          key: bds-${{ runner.os }}-${{ hashFiles('bds/vendor/bds-version.txt', 'common/data/bds-versions.json') }}
+      # libfaketime (multithreaded) for LAB_SPEED, from apt once and kept
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/bdslab-faketime
+          key: faketime-${{ runner.os }}-${{ runner.arch }}-0.9.10
+      - name: libfaketime
+        run: |
+          d="$HOME/.cache/bdslab-faketime"; f="$d/libfaketimeMT.so.1"
+          if [ ! -f "$f" ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends faketime > /dev/null
+            mkdir -p "$d" && cp /usr/lib/x86_64-linux-gnu/faketime/libfaketimeMT.so.1 "$f"
+          fi
+          echo "LAB_FAKETIME_LIB=$f" >> "$GITHUB_ENV"
+      - run: node lab.mjs bds
+      # (the lab's starting point, before anything is recorded: bds/lab.mjs above does not make it, the top lab.mjs does)
+      - run: node ../lab.mjs help > /dev/null
+      - if: contains(matrix.part, 'bench') && !cancelled()
+        run: node ../common/deps.mjs run bds:bench --results "$RUNNER_TEMP/results/bds.jsonl" -- node bench/bench.mjs selftest
+      # the from-scratch lessons: the reference passes every one in the sandbox and on this BDS, the empty template fails
+      - if: contains(matrix.part, 'scratch') && !cancelled()
+        run: node ../common/deps.mjs run bds:scratch --results "$RUNNER_TEMP/results/bds.jsonl" -- node ../lab.mjs scratch selftest --real --jobs 3
+      # why, chaos, shrink, gaps, record, harden (a scripted AI) and mutate on the real server, end to end
+      - if: contains(matrix.part, 'dev') && !cancelled()
+        run: node ../common/deps.mjs run bds:dev --results "$RUNNER_TEMP/results/bds.jsonl" -- node ../tests/dev-bds.mjs
+      # the server's side of the app lab's game verbs (where, items, face, lookat: their very js) with a real client joined
+      - if: contains(matrix.part, 'play') && !cancelled()
+        run: node ../common/deps.mjs run bds:play --results "$RUNNER_TEMP/results/bds.jsonl" -- node ../tests/play-bds.mjs
+      # (an addon whose tests fail is also an annotation: which addon, and the last lines it printed — readable on the run's
+      # page and through the API where the log is not)
+      - name: test and pack the addons
+        if: contains(matrix.part, 'addons') && !cancelled()
+        env:
+          ADDONS: ${{ needs.plan.outputs.addons }}
+        run: node ../common/deps.mjs each --results "$RUNNER_TEMP/results/bds.jsonl" --jobs 3 --unit 'bds:addon:{}' --names "$ADDONS" -- sh -c 'node lab.mjs test -a {} && node lab.mjs pack -a {}'
+      - name: results for the memory
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: 'verify-results-bds-${{ matrix.part }}', path: '${{ runner.temp }}/results/', retention-days: 1, if-no-files-found: ignore }
+      - if: always() && contains(matrix.part, 'addons')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: bds-addons, path: 'bds/dist/*', if-no-files-found: ignore }
+
+  end:
+    # Endstone on Linux: Python venv + endstone from PyPI; Endstone downloads the BDS it supports
+    needs: plan
+    if: needs.plan.outputs.extra == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults: { run: { working-directory: end } }
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      # (a plugin to test at all: here, where hashFiles is allowed)
+      - id: has
+        if: hashFiles('end/plugins/*/pyproject.toml', 'end/plugins/*/CMakeLists.txt') != ''
+        run: echo "yes=true" >> "$GITHUB_OUTPUT"
+      - if: steps.has.outputs.yes == 'true'
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with: { node-version: 22 }
+      - if: steps.has.outputs.yes == 'true'
+        id: py
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with: { python-version: '3.12' }
+      # (the venv in end/.lab links to this exact Python: another 3.12.x on the next runner made a restored venv that could not
+      # run, and every plugin's server crashed. The lab now remakes such a venv itself; the key keeps it from being restored)
+      - if: steps.has.outputs.yes == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: end/.lab
+          key: end-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('end/flavor.mjs') }}
+      - if: steps.has.outputs.yes == 'true'
+        run: node lab.mjs server
+      - name: test and pack every plugin
+        if: steps.has.outputs.yes == 'true'
+        run: |
+          # every plugin, then the ones that failed (one failure does not hide the rest)
+          bad=""
+          for d in plugins/*/; do
+            [ -d "$d" ] || continue; p=$(basename "$d")
+            echo "::group::$p"
+            if node lab.mjs test -a "$p" --cov && node lab.mjs pack -a "$p"; then :; else bad="$bad $p"; echo "::error title=endstone $p::test or pack failed"; fi
+            echo "::endgroup::"
+          done
+          [ -z "$bad" ] || { echo "failed:$bad"; exit 1; }
+      - if: always() && steps.has.outputs.yes == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: endstone-plugins, path: 'end/dist/*', if-no-files-found: ignore }
+
+  ll:
+    # LeviLamina natively on Windows: lip installs LeviLamina + LegacyScriptEngine; xmake builds native mods
+    needs: plan
+    if: needs.plan.outputs.extra == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults: { run: { working-directory: ll, shell: bash } }
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - id: has
+        if: hashFiles('ll/mods/*/manifest.json', 'll/mods/*/xmake.lua') != ''
+        run: echo "yes=true" >> "$GITHUB_OUTPUT"
+      - if: steps.has.outputs.yes == 'true'
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with: { node-version: 22 }
+      - if: steps.has.outputs.yes == 'true'
+        uses: xmake-io/github-action-setup-xmake@3a1a5dddfc7fa625d9a698738334bf55655a861a # v1
+        with: { xmake-version: latest }
+      - if: steps.has.outputs.yes == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ll/.lab
+          key: ll-${{ runner.os }}-${{ hashFiles('ll/flavor.mjs') }}
+      - if: steps.has.outputs.yes == 'true'
+        run: node lab.mjs server
+      - name: test and pack every mod
+        if: steps.has.outputs.yes == 'true'
+        run: |
+          # every mod, then the ones that failed (one failure does not hide the rest)
+          bad=""
+          for d in mods/*/; do
+            [ -d "$d" ] || continue; m=$(basename "$d")
+            echo "::group::$m"
+            if node lab.mjs test -a "$m" && node lab.mjs pack -a "$m"; then :; else bad="$bad $m"; echo "::error title=levilamina $m::test or pack failed"; fi
+            echo "::endgroup::"
+          done
+          [ -z "$bad" ] || { echo "failed:$bad"; exit 1; }
+      - if: always() && steps.has.outputs.yes == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: levilamina-mods, path: 'll/dist/*', if-no-files-found: ignore }
+
+  state:
+    # the memory: this run's passes and what each read, over the newest trusted memory → the artifact verify-state (30 days) the
+    # next plan reads. Also after a failure or a cancel (what passed is kept); never for a pull request (its workflow may be
+    # changed: its results are never believed); not when nothing ran
+    needs: [plan, offline, bds]
+    if: always() && github.event_name != 'pull_request' && needs.plan.result == 'success' && (needs.plan.outputs.offline == 'true' || needs.plan.outputs.bds == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with: { node-version: 22 }
+      - env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node common/verify-plan.mjs --merge --out "$RUNNER_TEMP/state/verify-state.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: verify-state, path: '${{ runner.temp }}/state/verify-state.json', retention-days: 30, if-no-files-found: ignore }

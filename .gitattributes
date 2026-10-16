@@ -1,0 +1,3 @@
+# the autopilot appends to these from several places (CI, this machine): keep both sides, never a conflict
+auto/ledger.jsonl merge=union
+auto/LESSONS.md merge=union

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# The fake adb the lab runs in the tests (tests/fake/app/adb.mjs does the work). When the test started its fake adb server
+# (FAKE_ADB_PORT: tests/fake/app/adb-server.mjs, a thread of the test's own process), the call is answered there: a node process
+# per call cost some 50 ms of CPU, and a quarter of app-offline makes 1300 calls. Without one, or for a call that reads its
+# standard input (pair, sqlite3, a file written with cat >, typed text) or runs on (logcat): adb.mjs in a process of its own.
+# To the server: the folder, the argument count, the arguments and the environment (only what adb.mjs reads: FAKE_*, APP_*,
+# ANDROID_*, HOME — `compgen -e` of all of it was a fork per call), each ending in a NUL, then one more NUL.
+# From it: the exit code, stderr and "=" stdout, on a line each (bytes other than printable ASCII as \0ooo, for printf %b); the
+# stdout line "raw" instead: stdout comes as it is after the lines (a picture)
+here=${0%/*}
+alone() { exec node "$here/adb.mjs" "$@"; }
+[ -n "$FAKE_ADB_PORT" ] || alone "$@"
+case " $* " in
+  *" logcat "* | " pair "* | " -s "*" pair "* | *sqlite3* | *"cat > "* | *"read -r v"*) alone "$@" ;;
+esac
+{ exec 3<> "/dev/tcp/127.0.0.1/$FAKE_ADB_PORT"; } 2> /dev/null || alone "$@"
+{
+  printf '%s\0' "$PWD" "$#" "$@"
+  for n in ${!FAKE_*} ${!APP_*} ${!ANDROID_*} HOME; do printf '%s=%s\0' "$n" "${!n}"; done
+  printf '\0'
+} >&3
+if ! { IFS= read -r code && IFS= read -r err && IFS= read -r out; } <&3; then
+  echo "fake adb: the fake adb server did not answer ($*)" >&2
+  exit 1
+fi
+[ -z "$err" ] || printf '%b' "$err" >&2
+if [ "$out" = raw ]; then cat <&3; elif [ "$out" != = ]; then printf '%b' "${out#=}"; fi
+exit "$code"
