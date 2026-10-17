@@ -132,7 +132,17 @@ const fake = http.createServer(async (req, res) => {
   }
   if ((x = /^\/actions\/runs\/(\d+)$/.exec(r))) { const run = G.runs.find((y) => String(y.id) === x[1]); return run ? send(200, run) : send(404, { message: 'Not Found' }); }
   if ((x = /^\/actions\/runs\/(\d+)\/jobs$/.exec(r))) return send(200, { jobs: G.jobs[x[1]] ?? [] });
-  if ((x = /^\/actions\/runs\/(\d+)\/(rerun|rerun-failed-jobs|cancel)$/.exec(r)) && m === 'POST') { if (!write()) return send(403, { message: 'no' }); G.reruns.push(`${x[2]} ${x[1]}`); return send(201, {}); }
+  // (rerun and cancel answered as the real GitHub answered the API for AI: a run still going is not rerun, a passed one has no
+  // failed jobs to rerun, a finished one is not cancelled — each a 403 or 409 that is no missing permission)
+  if ((x = /^\/actions\/runs\/(\d+)\/(rerun|rerun-failed-jobs|cancel)$/.exec(r)) && m === 'POST') {
+    if (!write()) return send(403, { message: 'no' });
+    const run = G.runs.find((y) => String(y.id) === x[1]);
+    if (!run) return send(404, { message: 'Not Found' });
+    if (x[2] === 'cancel' && run.status === 'completed') return send(409, { message: 'Cannot cancel a workflow run that is completed.' });
+    if (x[2] !== 'cancel' && run.status !== 'completed') return send(403, { message: 'This workflow is already running' });
+    if (x[2] === 'rerun-failed-jobs' && !['failure', 'cancelled', 'timed_out', 'startup_failure'].includes(run.conclusion)) return send(403, { message: 'This workflow run cannot be retried' });
+    G.reruns.push(`${x[2]} ${x[1]}`); return send(x[2] === 'cancel' ? 202 : 201, {});
+  }
   if ((x = /^\/check-runs\/(\d+)\/annotations$/.exec(r))) return send(200, G.notes[x[1]] ?? []);
   if ((x = /^\/actions\/jobs\/(\d+)\/logs$/.exec(r))) return send(302, null, { location: `http://127.0.0.1:${fake.address().port}/blob/log-${x[1]}` });
   if ((x = /^\/actions\/(?:workflows\/([\w.-]+)\/)?runs$/.exec(r))) {
@@ -152,14 +162,14 @@ const fake = http.createServer(async (req, res) => {
   if ((x = /^\/actions\/secrets\/(\w+)$/.exec(r))) {
     if (!write()) return send(403, { message: 'no' });
     if (m === 'PUT') { G.secrets.set(x[1], { sealed: jb.encrypted_value, at: '2026-10-17T00:00:00Z' }); return send(201, null); }
-    if (m === 'DELETE') { G.secrets.delete(x[1]); return send(204, null); }
+    if (m === 'DELETE') { if (!G.secrets.has(x[1])) return send(404, { message: 'Not Found' }); G.secrets.delete(x[1]); return send(204, null); }
   }
   if (r.startsWith('/actions/variables')) {
     if ((x = /^\/actions\/variables\/(\w+)$/.exec(r))) {
       if (m === 'GET') return G.vars.has(x[1]) ? send(200, { name: x[1], value: G.vars.get(x[1]) }) : send(404, { message: 'Not Found' });
       if (!write()) return send(403, { message: 'no' });
       if (m === 'PATCH') { if (!G.vars.has(x[1])) return send(404, { message: 'Not Found' }); G.vars.set(x[1], jb.value); return send(204, null); }
-      if (m === 'DELETE') { G.vars.delete(x[1]); return send(204, null); }
+      if (m === 'DELETE') { if (!G.vars.has(x[1])) return send(404, { message: 'Not Found' }); G.vars.delete(x[1]); return send(204, null); }
     }
     if (m === 'POST') { G.vars.set(jb.name, jb.value); return send(201, null); }
     return send(200, { total_count: G.vars.size, variables: [...G.vars].map(([name, value]) => ({ name, value, updated_at: '2026-10-17T00:00:00Z' })) });
@@ -376,7 +386,8 @@ await t('reading: lab_status (who, role, allowed, setup rows, newest runs, faili
   for (const bad of ['../etc/passwd', 'a/../../b', 'a\\b', '%2e%2e/x']) ok((await tool('file_read', { path: bad })).isError, `refused: ${bad}`);
   ok((await tool('file_read', { path: 'nope.txt' })).isError, 'a file that is not there');
   ok((await tool('releases_list')).meta.releases[0].assets[0].name === 'Coins.mcaddon', 'releases');
-  ok((await tool('artifacts_list', { run_id: 100 })).meta.artifacts[0].name === 'dist', 'artifacts');
+  const art = await tool('artifacts_list', { run_id: 100 });
+  ok(art.meta.artifacts[0].name === 'dist' && art.meta.artifacts[0].url === 'https://github.com/o/lab/actions/runs/100/artifacts/5', `artifacts, with the page to download each: ${art.text}`);
   ok((await tool('workflows_list')).meta.workflows.some((w) => w.file === 'unit.yml'), 'workflows');
   const sec = await tool('secrets_list');
   ok(sec.meta.secrets.some((s) => s.name === 'APP_PRIVATE_KEY') && !JSON.stringify(sec.meta).includes('sealed'), 'secret names only');
@@ -406,10 +417,26 @@ await t('writing: workflow_run (dispatched with its inputs, the new run found, k
   ok((await tool('unit_new', { unit: 'Bad-Name', request: 'x' })).isError, 'a name of another form');
   const nu = await tool('unit_new', { unit: 'ruby_sword', title: 'ルビーの剣', request: '右クリックで火を出す剣' });
   ok(!nu.isError && G.dispatched.at(-1).inputs.job === 'new' && G.dispatched.at(-1).inputs.unit === 'ruby_sword', nu.text);
-  await tool('run_rerun', { run_id: 100 });
+  const again = await tool('run_rerun', { run_id: 100 });
+  ok(!again.isError && again.meta.failedOnly === true && again.meta.attempt === 2 && /2 回目/.test(again.text), again.text);
   await tool('run_rerun', { run_id: 100, failed_only: false });
-  await tool('run_cancel', { run_id: 201 });
+  const stop = await tool('run_cancel', { run_id: 201 });
+  ok(!stop.isError && /頼みました/.test(stop.text) && /run_detail/.test(stop.text), stop.text);
   eq(G.reruns, ['rerun-failed-jobs 100', 'rerun 100', 'cancel 201']);
+  // (as the real GitHub: a passed run is run again whole — it has no failed jobs; a run still going is not rerun, a finished one
+  // not cancelled — each said as what it is, nothing sent)
+  const passed = await tool('run_rerun', { run_id: 99 });
+  ok(!passed.isError && passed.meta.failedOnly === false && G.reruns.at(-1) === 'rerun 99', passed.text);
+  const none = await tool('run_rerun', { run_id: 99, failed_only: true });
+  ok(none.isError && /落ちたジョブがありません/.test(none.text) && G.reruns.length === 4, none.text);
+  const going = await tool('run_rerun', { run_id: 201 });
+  ok(going.isError && /まだ動いています/.test(going.text) && G.reruns.length === 4, going.text);
+  const done = await tool('run_cancel', { run_id: 100 });
+  ok(done.isError && /もう終わっています/.test(done.text) && G.reruns.length === 4, done.text);
+  ok((await tool('run_cancel', { run_id: 424242 })).isError && (await tool('run_rerun', { run_id: 424242 })).isError, 'a run that is not there');
+  // (and GitHub's own words for those, where another caller meets them: no "no permission")
+  const { explain } = await imp('panel/lib/gh.mjs');
+  ok(/まだ動いています/.test(explain(403, 'This workflow is already running')) && /やり直せない/.test(explain(403, 'This workflow run cannot be retried')) && /止められません/.test(explain(409, 'Cannot cancel a workflow run that is completed.')) && /権限がありません/.test(explain(403, 'Resource not accessible by integration')), 'explain');
 });
 
 await t('files: a new file made; one that exists only over the sha read (none: 409 with its sha; a stale one: said, nothing overwritten); manifest.json kept JSON; .github/, auto/STOP, auto/policy.json and .env never; deleted over its sha', async () => {
@@ -452,12 +479,16 @@ await t('secrets and variables: a secret sealed with the lab\'s key (GitHub open
   const noConfirm = await tool('secret_delete', { name: 'MY_KEY' });
   ok(noConfirm.isError && /confirm: true/.test(noConfirm.text) && G.secrets.has('MY_KEY'), noConfirm.text);
   ok(!(await tool('secret_delete', { name: 'MY_KEY', confirm: true })).isError && !G.secrets.has('MY_KEY'), 'deleted with confirm');
+  const gone = await tool('secret_delete', { name: 'MY_KEY', confirm: true });
+  ok(gone.isError && /秘密 MY_KEY はありません/.test(gone.text), `one that is not there, as that: ${gone.text}`);
   const v = await tool('variable_set', { name: 'LAB_HOSTS', value: 'x/host,y/host' });
   ok(!v.isError && G.vars.get('LAB_HOSTS') === 'x/host,y/host', v.text);
   const last = G.issues.find((i) => i.labels.some((l) => l.name === 'bds-lab-audit')).comments.at(-1).body;
   ok(/"before":"x\/host"/.test(last) && /"name":"LAB_HOSTS"/.test(last), `the value before, for 取り消す: ${last}`);
   ok(!(await tool('variable_set', { name: 'NEW_ONE', value: '1' })).isError && G.vars.get('NEW_ONE') === '1', 'a new variable made');
   ok(!(await tool('variable_delete', { name: 'NEW_ONE' })).isError && !G.vars.has('NEW_ONE'), 'deleted');
+  const vg = await tool('variable_delete', { name: 'NEW_ONE' });
+  ok(vg.isError && /変数 NEW_ONE はありません/.test(vg.text), `one that is not there, as that: ${vg.text}`);
   ok(!answers.some((a) => a.text.includes('s3cr3t-value-0123')), 'the secret\'s value in no answer');
 });
 
@@ -696,6 +727,7 @@ await t('the lab\'s Claude plugin (panel/lib/pluginpack.mjs): its MCP server (th
   ok(man.name === 'bds-lab' && /^\d+\.\d+\.\d+$/.test(man.version) && man.homepage === opts.panelUrl, JSON.stringify(man));
   ok(/^---\nname: bds-lab\ndescription: .+\n---\n/.test(files['skills/bds-lab/SKILL.md']) && /lab_status/.test(files['skills/bds-lab/SKILL.md']) && /confirm: true/.test(files['skills/bds-lab/SKILL.md']) && /\.github\//.test(files['skills/bds-lab/SKILL.md']), 'the skill: when, how, what never');
   ok(files['skills/bds-lab/SKILL.md'].split(/\s+/).length < 3000, 'a lean skill');
+  ok(/job `go` builds the \.mcaddon: it is the run's artifact/.test(files['skills/bds-lab/SKILL.md']) && /## Run and watch Actions/.test(files['skills/bds-lab/SKILL.md']) && /`run_cancel`/.test(files['skills/bds-lab/SKILL.md']) && /`run_rerun`/.test(files['skills/bds-lab/SKILL.md']), 'the skill: go\'s .mcaddon is an artifact (as unit.yml keeps it), and how Actions are run and watched');
   for (const bad of [{ ...opts, mcpUrl: 'http://x.test/mcp' }, { ...opts, mcpUrl: 'https://x.test/' }, { ...opts, lab: 'nope' }]) { let e = null; try { PK.pluginFiles(bad); } catch (x) { e = x; } ok(e, JSON.stringify(bad)); }
   const z = PK.zip(files), again = PK.zip(PK.pluginFiles(opts));
   ok(Buffer.from(z).equals(Buffer.from(again)), 'the same files, the same bytes');
