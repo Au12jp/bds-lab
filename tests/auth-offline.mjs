@@ -205,7 +205,7 @@ await t('refresh: from the panel\'s origin, the refresh token traded (grant_type
   }
   eq((await ask(`${AUTH}/refresh`, { headers: { origin: PANEL } })).status, 405, 'GET: not this way');
   const health = await ask(`${AUTH}/health`, { headers: { origin: PANEL } });
-  eq([health.status, health.json, health.headers['access-control-allow-origin']], [200, { ok: true, clientId: CLIENT_ID, origins: [PANEL, 'http://127.0.0.1:9', PAGES], panels: [`${PANEL}/`, 'http://127.0.0.1:9/', `${PAGES}/bds-lab/`], version: A.VERSION, lab: null }, PANEL], 'health: the panel may read it (origins for CORS, panels where a sign-in returns)');
+  eq([health.status, health.json, health.headers['access-control-allow-origin']], [200, { ok: true, clientId: CLIENT_ID, origins: [PANEL, 'http://127.0.0.1:9', PAGES], panels: [`${PANEL}/`, 'http://127.0.0.1:9/', `${PAGES}/bds-lab/`], version: A.VERSION, lab: null, device: false }, PANEL], 'health: the panel may read it (origins for CORS, panels where a sign-in returns)');
   eq((await ask(`${AUTH}/health`, { headers: { origin: 'https://evil.test' } })).headers['access-control-allow-origin'], undefined, 'not for another origin');
 });
 
@@ -239,7 +239,7 @@ await t('every answer: no-store, no Referer, nosniff, a CSP that loads and frame
   // a service without its settings: says which are missing (names, never values), signs nobody in
   const bare = A.handler({ GITHUB_CLIENT_SECRET: CLIENT_SECRET, STATE_SECRET: 'short' });
   const h = await bare(new Request(`${AUTH}/health`));
-  eq([h.status, await h.json()], [503, { ok: false, clientId: null, origins: [], panels: [], version: A.VERSION, lab: null, missing: ['GITHUB_CLIENT_ID', 'STATE_SECRET', 'PANEL_ORIGINS'] }]);
+  eq([h.status, await h.json()], [503, { ok: false, clientId: null, origins: [], panels: [], version: A.VERSION, lab: null, device: false, missing: ['GITHUB_CLIENT_ID', 'STATE_SECRET', 'PANEL_ORIGINS'] }]);
   const l = await bare(new Request(`${AUTH}/login?return=${encodeURIComponent(`${PANEL}/`)}`));
   eq([l.status, await l.json()], [500, { error: 'config' }]);
 });

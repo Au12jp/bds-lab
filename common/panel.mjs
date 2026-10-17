@@ -12,6 +12,10 @@ import { fileURLToPath } from 'node:url';
 
 const TOP = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const BROWSER = 'tests/panel-browser.mjs';
+// (the Worker in Cloudflare's own runtime: needs wrangler — WRANGLER, or one in node_modules — and says it skipped without;
+// left out of --quick like the browser)
+const WORKERD = 'tests/api-workerd.mjs';
+const SLOW = new Set([BROWSER, WORKERD]);
 // (a file → the tests that hold it; the first match wins its group, all groups add up)
 const RULES = [
   [/^panel\/lib\/(policy|audit|members)\.mjs$/, ['tests/governance-offline.mjs']],
@@ -25,9 +29,10 @@ const RULES = [
   [/^panel\/(lib|ui)\//, ['tests/stats-offline.mjs']],
   [/^panel\/(lib|ui)\/|^panel\/sw\.js$/, ['tests/inbox-offline.mjs']],
   [/^host\/template\//, ['tests/panel-offline.mjs']],
-  [/^auth\//, ['tests/auth-offline.mjs', 'tests/api-offline.mjs', BROWSER]],
-  // (the lab's API for AI runs the panel's own modules: a change to one is tried through it too)
+  [/^auth\//, ['tests/auth-offline.mjs', 'tests/api-offline.mjs', WORKERD, BROWSER]],
+  // (the lab's API for AI runs the panel's own modules: a change to one is tried through it too — and in the Worker)
   [/^panel\/lib\/|^common\/claude-plugin\.mjs$/, ['tests/api-offline.mjs']],
+  [/^panel\/lib\//, [WORKERD]],
   [/^common\/(panel-config|ghapp)\.mjs$/, ['tests/appci-offline.mjs', 'tests/panel-offline.mjs']],
   [/^common\/panel\.mjs$/, ['tests/panel-offline.mjs']],
   [/^panel\/(a11y|panel)\.css$/, ['tests/a11y-offline.mjs']],
@@ -45,7 +50,7 @@ export const ALL = ['tests/panel-offline.mjs', 'tests/governance-offline.mjs', '
   'tests/ghrules-offline.mjs', 'tests/fakes-rules-offline.mjs', 'tests/connect-ui-offline.mjs',
   'tests/qr-offline.mjs', 'tests/playcard-offline.mjs', 'tests/relnotes-offline.mjs', 'tests/packdiff-offline.mjs', 'tests/revert-offline.mjs', 'tests/drafts-offline.mjs', 'tests/tutorial-offline.mjs', 'tests/progress-offline.mjs',
   'tests/failsum-offline.mjs', 'tests/runissue-offline.mjs', 'tests/runcompare-offline.mjs', 'tests/testhist-offline.mjs', 'tests/secretwatch-offline.mjs', 'tests/connectdaily-offline.mjs', 'tests/weekly-offline.mjs', 'tests/notifyprefs-offline.mjs',
-  'tests/minutes-offline.mjs', 'tests/lendfc-offline.mjs', 'tests/nlsched-offline.mjs', 'tests/wizard-offline.mjs', 'tests/a11y-offline.mjs', 'tests/inviteqr-offline.mjs', 'tests/undo-offline.mjs', 'tests/statuspage-offline.mjs', BROWSER];
+  'tests/minutes-offline.mjs', 'tests/lendfc-offline.mjs', 'tests/nlsched-offline.mjs', 'tests/wizard-offline.mjs', 'tests/a11y-offline.mjs', 'tests/inviteqr-offline.mjs', 'tests/undo-offline.mjs', 'tests/statuspage-offline.mjs', WORKERD, BROWSER];
 const LINTABLE = /^(panel|auth)\/.*\.(m?js)$|^common\/(panel|panel-config|ghapp|hosts|schedule|unitci|connect-daily|weekly|statuspage)\.mjs$|^tests\/(panel|governance|setup|session|auth|appci|host|units|schedule|stats|inbox|rescue|shell|misc|ghrules|fakes|connect|qr|playcard|relnotes|packdiff|revert|drafts|tutorial|progress|failsum|runissue|runcompare|testhist|secretwatch|connectdaily|weekly|notifyprefs|minutes|lendfc|nlsched|wizard|a11y|inviteqr|undo|statuspage)-[a-z-]+\.mjs$/;
 
 /** the changed files → { lint: [files], tests: [files] } (pure); quick leaves the browser out */
@@ -57,7 +62,7 @@ export function plan(files, { quick = false } = {}) {
     if (f.startsWith('panel/lib/') || f.startsWith('panel/ui/')) tests.add('tests/panel-offline.mjs');
     for (const [re, t] of RULES) if (re.test(f)) for (const x of typeof t === 'function' ? t(f) : t) tests.add(x);
   }
-  return { lint: [...new Set(lint)], tests: ALL.filter((t) => tests.has(t) && !(quick && t === BROWSER)) };
+  return { lint: [...new Set(lint)], tests: ALL.filter((t) => tests.has(t) && !(quick && SLOW.has(t))) };
 }
 /** what git sees changed (staged, not, and new files) */
 export function changed(cwd = TOP) {
@@ -82,7 +87,7 @@ const eslint = (files) => (fs.existsSync(LOCAL_ESLINT) ? runOne(process.execPath
 
 /** the checks run → true when all passed; out: each one ✔/✘ with its time, a failure's lines */
 export function check({ files, quick = false, all = false, out = console.log } = {}) {
-  const p = all ? { lint: ['panel', 'auth', 'common/panel.mjs', 'common/panel-config.mjs', 'common/ghapp.mjs', 'common/hosts.mjs', 'common/claude-plugin.mjs', ...ALL], tests: ALL.filter((t) => !(quick && t === BROWSER)) } : plan(files ?? changed(), { quick });
+  const p = all ? { lint: ['panel', 'auth', 'common/panel.mjs', 'common/panel-config.mjs', 'common/ghapp.mjs', 'common/hosts.mjs', 'common/claude-plugin.mjs', ...ALL], tests: ALL.filter((t) => !(quick && SLOW.has(t))) } : plan(files ?? changed(), { quick });
   if (!p.lint.length && !p.tests.length) { out('panel: 変えたファイルに、パネルの試験の要るものはありません（--all ですべて）'); return true; }
   let ok = true;
   const say = (name, r) => { ok &&= r.ok; out(`${r.ok ? '✔' : '✘'} ${name}（${(r.ms / 1000).toFixed(1)} 秒）`); if (!r.ok) for (const x of failLines(r.out)) out(`    ${x}`); };

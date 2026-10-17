@@ -269,9 +269,10 @@ await t('panel check: a changed file → the checks it needs (ESLint, the offlin
     'tests/qr-offline.mjs', 'tests/playcard-offline.mjs', 'tests/relnotes-offline.mjs', 'tests/packdiff-offline.mjs', 'tests/revert-offline.mjs', 'tests/drafts-offline.mjs', 'tests/tutorial-offline.mjs', 'tests/progress-offline.mjs',
     'tests/failsum-offline.mjs', 'tests/runissue-offline.mjs', 'tests/runcompare-offline.mjs', 'tests/testhist-offline.mjs', 'tests/secretwatch-offline.mjs', 'tests/connectdaily-offline.mjs', 'tests/weekly-offline.mjs', 'tests/notifyprefs-offline.mjs',
     'tests/minutes-offline.mjs', 'tests/lendfc-offline.mjs', 'tests/nlsched-offline.mjs', 'tests/wizard-offline.mjs', 'tests/a11y-offline.mjs', 'tests/inviteqr-offline.mjs', 'tests/undo-offline.mjs'];
-  // (a panel library also runs the lab's API for AI: auth/api.mjs — tried through it)
-  eq(PN.plan(['panel/lib/members.mjs']), { lint: ['panel/lib/members.mjs'], tests: ['tests/panel-offline.mjs', 'tests/governance-offline.mjs', 'tests/api-offline.mjs', ...LANES, 'tests/panel-browser.mjs'] });
+  // (a panel library also runs the lab's API for AI: auth/api.mjs — tried through it, and in Cloudflare's runtime unless quick)
+  eq(PN.plan(['panel/lib/members.mjs']), { lint: ['panel/lib/members.mjs'], tests: ['tests/panel-offline.mjs', 'tests/governance-offline.mjs', 'tests/api-offline.mjs', ...LANES, 'tests/api-workerd.mjs', 'tests/panel-browser.mjs'] });
   eq(PN.plan(['panel/ui/signin.mjs', 'auth/handler.mjs'], { quick: true }).tests, ['tests/panel-offline.mjs', 'tests/session-offline.mjs', 'tests/auth-offline.mjs', 'tests/api-offline.mjs', ...LANES]);
+  eq(PN.plan(['auth/worker.mjs']).tests, ['tests/auth-offline.mjs', 'tests/api-offline.mjs', 'tests/api-workerd.mjs', 'tests/panel-browser.mjs'], 'the Worker: in workerd too');
   eq(PN.plan(['common/claude-plugin.mjs']).tests, ['tests/api-offline.mjs'], 'the Claude plugin\'s command line');
   eq(PN.plan(['common/unitci.mjs', 'common/schedule.mjs']), { lint: ['common/unitci.mjs', 'common/schedule.mjs'], tests: ['tests/units-offline.mjs', 'tests/schedule-offline.mjs'] }, 'the CLI side of 「アドオン」 and 「予約」');
   eq(PN.plan(['panel/sw.js'], { quick: true }).tests, ['tests/panel-offline.mjs', 'tests/inbox-offline.mjs'], 'the service worker');

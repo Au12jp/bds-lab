@@ -39,7 +39,7 @@ bds-lab は「頼まれたアドオンを、本物の BDS と本物のクライ�
 | 育つ | `skill learn` → `promote` → `verify`・`skill refine`・`skill bench` | 失敗の記録 → 候補 → 証拠つきの規則 → 実機で再確認。スキル本文は採点と振り分けで測り、悪くなれば戻す |
 | 自動 | `auto next` / `auto run` | 仕事を自分で選び、作り、確かめ、レビューを通ったものだけ取り込む（床：STOP・トークンの上限・触れないファイル） |
 | ブラウザ・スマホから | 管理パネル（`panel/`、GitHub Pages）＋ サインインのサービス（`auth/`）→ ワークフロー | GitHub でサインイン（ラボの GitHub App）、役割（ポリシー）と監査ログ、「準備」で App・サービス・Pages を整える。アカウントを切り替えて、自分の Actions か貸し手の Actions（hostrun.yml → `host ci`）で走らせ、進み具合・成果物・秘密・端末・貸す条件。終わった実行は notify が Discord に（成果物を添えて） |
-| AI から（Claude ほか） | サインインのサービスの AI 用 API（`auth/api.mjs`: MCP `/mcp`・HTTP `/api`）→ GitHub | つないだ人の GitHub のトークンで、パネルと同じ部品（`panel/lib`）・役割の決まり・確認・監査ログのまま、様子・実行とログ・ファイル・試験と仕上げ・秘密・変数・メンバー・予約の 34 の道具。サインインは MCP の OAuth（`auth/handler.mjs`: 動的登録・同意の画面・GitHub App・封じたトークン）か GitHub のトークン。`.github/`・`auto/policy.json`・`auto/STOP`・`.env` は変えない |
+| AI から（Claude ほか） | サインインのサービスの AI 用 API（`auth/api.mjs`: MCP `/mcp`・HTTP `/api`）→ GitHub | つないだ人の GitHub のトークンで、パネルと同じ部品（`panel/lib`）・役割の決まり・確認・監査ログのまま、様子・実行とログ・ファイル・試験と仕上げ・秘密・変数・メンバー・予約の 34 の道具。サインインは MCP の OAuth（`auth/handler.mjs`: 動的登録・同意の画面・GitHub App・封じたトークン）、どの AI でもリンク 1 つで許すデバイスのサインイン（`/device`: 待つ間は Durable Object）、か GitHub のトークン。AI が読む説明は `/llms.txt`・`/openapi.json`。置く前に workerd で試す（`tests/api-workerd.mjs`）。`.github/`・`auto/policy.json`・`auto/STOP`・`.env` は変えない |
 
 ## モジュールの地図（common/）
 

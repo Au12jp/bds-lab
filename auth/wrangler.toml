@@ -7,3 +7,13 @@ compatibility_date = "2025-06-01"
 workers_dev = true
 # (a deploy keeps the vars already set on Cloudflare instead of clearing them)
 keep_vars = true
+
+# the device sign-in's short-lived codes (worker.mjs Store: a Durable Object, SQLite-backed — on Cloudflare's free plan too).
+# auth-deploy.yml deploys without these lines when an account cannot have one: the device sign-in is then simply off.
+[[durable_objects.bindings]]
+name = "STORE"
+class_name = "Store"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Store"]

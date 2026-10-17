@@ -214,12 +214,14 @@ function aiCard(ctx) {
   const base = ctx.config.authUrl, mcp = `${base}/mcp`, say = h('div', { class: 'muted', role: 'status' });
   const copy = (text, what) => h('button', { onclick: () => act(() => globalThis.navigator.clipboard.writeText(text), `${what}をコピーしました`) }, 'コピー');
   const code = `claude mcp add --transport http ${PLUGIN_NAME} ${mcp}`;
+  // (any AI that can read the web: one sentence — it reads the service's own instructions, shows a link, the person approves)
+  const ask = `このラボを操作して: ${base}/llms.txt を読み、そこにある「デバイスのサインイン」でつないでください（出たリンクを私が開いて許可します）`;
   const check = h('button', { onclick: async () => {
     say.replaceChildren('確かめています…');
     try {
       const r = await (ctx.fetchImpl ?? ((...a) => globalThis.fetch(...a)))(`${base}/api`, { cache: 'no-store', credentials: 'omit' });
       const j = r.ok ? await r.json() : null;
-      say.replaceChildren(j?.tools?.length ? `✅ API が答えました: 道具 ${j.tools.length} 個（${j.lab}）。Claude からつなげます` : `⚠️ API がまだありません（HTTP ${r.status}）: サインインのサービスを置き直すと入ります（上の行の「auth-deploy.yml でもう一度置く」か「全自動で準備する」）`);
+      say.replaceChildren(j?.tools?.length ? `✅ API が答えました: 道具 ${j.tools.length} 個（${j.lab}）。Claude からつなげます${j.auth?.device ? '。コードでつなぐ方法（どの AI でも）も使えます' : '（コードでつなぐ方法は、この Cloudflare のアカウントでは使えません: MCP の OAuth か GitHub のトークンで）'}` : `⚠️ API がまだありません（HTTP ${r.status}）: サインインのサービスを置き直すと入ります（上の行の「auth-deploy.yml でもう一度置く」か「全自動で準備する」）`);
     } catch (e) { say.replaceChildren(`⚠️ つながりません（${e?.message ?? e}）`); }
   } }, 'API を確かめる');
   const dl = h('button', { onclick: () => act(async () => {
@@ -235,7 +237,8 @@ function aiCard(ctx) {
     h('ol', {},
       h('li', {}, 'Claude（アプリ・Web）: 下の「Claude 用プラグイン」をチャットに添付して入れる。または「設定」→「コネクタ」→「カスタムコネクタを追加」に上の URL。最初に使うとき「許可して GitHub へ」→ GitHub の「Authorize」。'),
       h('li', {}, 'Claude Code: ', h('code', {}, code), ' ', copy(code, 'コマンド')),
-      h('li', {}, 'ほかの AI・スクリプト: ', h('code', {}, `POST ${base}/api/<道具>`), '（Authorization: Bearer <GitHub のトークン>。一覧は ', h('code', {}, `GET ${base}/api`), '）')),
+      h('li', {}, 'どの AI でも（コードでつなぐ）: AI にこう頼むだけ → AI が出すリンクを開いて「許可して GitHub へ」→ GitHub の「Authorize」。', h('div', { class: 'row' }, h('code', {}, ask), copy(ask, '頼み方'))),
+      h('li', {}, 'スクリプト: ', h('code', {}, `POST ${base}/api/<道具>`), '（Authorization: Bearer <コードで受け取ったトークンか GitHub のトークン>。読むだけの道具は GET でも。一覧は ', h('code', {}, `GET ${base}/api`), '、説明は ', link(`${base}/`, 'AI 用のページ'), '・', link(`${base}/openapi.json`, 'OpenAPI'), '）')),
     h('div', { class: 'row' }, dl, check), say);
 }
 const roleName = (r) => (typeof r === 'string' ? r : r?.name ?? (r?.names?.length ? `${r.names.join(' か ')}（チームが読めません）` : 'なし'));

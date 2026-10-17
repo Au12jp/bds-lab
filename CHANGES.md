@@ -22,6 +22,16 @@
 - 秘密の封じを、使える所では WebCrypto の X25519 で（約 6 ms → 約 1 ms: Cloudflare の無料の CPU 時間に収まる。パネルも速く）。
 - 試験: `tests/api-offline.mjs`（偽の GitHub で、発見 → 登録 → 同意 → GitHub → code → トークン → 更新、34 の道具、役割の拒否・確認・監査・守るファイル・
   秘密を見せない・プラグインの zip）。`panel check` に加えた。
+- **コードでつなぐ（どの AI でも: デバイスのサインイン、RFC 8628）**: コネクタを足せない AI も、「`<サービス>/llms.txt` を読んでつないで」と頼むだけ。
+  AI が `POST /device/code` でコードを受け取り、人は出たリンク（`/device?code=XXXX-XXXX`）でこのサービス自身の画面を開いて、AI の名前とコードを
+  確かめて「許可して GitHub へ」→「Authorize」。AI は `/token` を 5 秒ごとに聞き、許されたら 1 回だけトークンを受け取る（10 分で切れる。「やめる」も伝わる）。
+  待つ間のものは Durable Object（`worker.mjs` の `Store`、SQLite: 無料のプランでも）に封じたまま置く。置けないアカウントでは auth-deploy.yml が
+  それなしで置く（注釈で言う。`/health` の `device`）。パネルの「🤖 AI から操作」にコピーできる頼み方、プラグインのスキルにも同じ手順（1.1.0）。
+- **AI が自分で分かる**: `GET /`（説明のページ）・`GET /llms.txt`・`GET /openapi.json`（OpenAPI 3.1）。読むだけの道具は `GET /api/<道具>?引数=値` でも。
+  知らない `MCP-Protocol-Version` は 400。長いログは末尾 400 KB（grep のときは 2 MB）だけを見て、行の番号は元のまま（Cloudflare の CPU 時間に収まる）。
+- **置く前に Cloudflare の実行環境で試す**: `tests/api-workerd.mjs` が `wrangler dev`（workerd）で置くものそのままを偽の GitHub に対して動かす（Durable Object・
+  プラットフォームの X25519 で封じた秘密を GitHub が開けること・ログの保存先へトークンなし・GraphQL・UTF-8・自分の https の /health を中で答えること・
+  デバイスのサインインの通し）。auth-deploy.yml は置く前にこれを通し、落ちたら置かない（今のサービスはそのまま）。`panel check`（`--quick` 以外）も、wrangler があれば。
 
 ### 管理パネル: 画面に「null」が出ていたのを直す
 - 「貸し借り」「概要」「統計」で、無い部分が「null」という文字で出ていた（ブラウザの replaceChildren・append は null を文字にする）。

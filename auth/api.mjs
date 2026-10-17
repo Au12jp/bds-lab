@@ -36,7 +36,8 @@ export class ToolError extends Error { constructor(message, status = 400) { supe
 const no = (m, status) => new ToolError(m, status);
 const enc = new TextEncoder();
 const b64 = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(s); };
-const unb64 = (s) => Uint8Array.from(atob(String(s ?? '').replace(/\s/g, '')), (c) => c.charCodeAt(0));
+// (a loop, not a callback per byte: a megabyte decoded within a Worker's short CPU time)
+const unb64 = (s) => { const bin = atob(String(s ?? '').replace(/\s/g, '')), out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; };
 const utf8 = (bytes) => { try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { return null; } };
 const encPath = (p) => String(p).split('/').map(encodeURIComponent).join('/');
 const fileOf = (p) => String(p ?? '').split('/').pop();
@@ -316,7 +317,7 @@ Never through this API: .github/ (CI and policy; the timetable only by schedule_
 
 /** env → async (Request) → Response for /mcp and /api (null for any other path: the sign-in service's). self: the sign-in
  *  service's own handler (its /health answered without the network); fetchImpl / now / sleep: tests */
-export function api(env = {}, { fetchImpl = (...a) => globalThis.fetch(...a), now = () => Date.now(), sleep = (ms) => new Promise((r) => setTimeout(r, ms)), self = null } = {}) {
+export function api(env = {}, { fetchImpl = (...a) => globalThis.fetch(...a), now = () => Date.now(), sleep = (ms) => new Promise((r) => setTimeout(r, ms)), self = null, device = false } = {}) {
   const lab = SLUG.test(String(env.LAB_SLUG ?? '').trim()) ? String(env.LAB_SLUG).trim() : null;
   const base = String(env.GITHUB_API ?? '').trim().replace(/\/+$/, '') || 'https://api.github.com';
   const box = tokenBox(String(env.STATE_SECRET ?? ''));
@@ -442,21 +443,30 @@ export function api(env = {}, { fetchImpl = (...a) => globalThis.fetch(...a), no
       if (!res.ok) throw new GhError(res.status, explain(res.status, ''), at);
       return (await res.text()).slice(-3_000_000);
     },
+    /** a log as the AI reads it: only its end is looked at (400 KB; 2 MB for a grep), each pass done by the platform's own regular
+     *  expressions over the whole text — a Worker's CPU time is short — and the lines numbered as in the whole log */
     shapeLog(raw, { tail = 300, grep, context = 2 } = {}) {
-      const lines = String(raw).replace(/\r/g, '').split('\n').map((l) => l.replace(/^\uFEFF?\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z ?/, '').replace(/\x1b\[[0-9;]*[A-Za-z]/g, ''));
+      let src = String(raw), base = 0;
+      const scan = grep ? 2_000_000 : 400_000;
+      if (src.length > scan) {
+        const cut = src.length - scan, nl = src.indexOf('\n', cut), start = nl < 0 ? cut : nl + 1;
+        for (let i = src.indexOf('\n'); i !== -1 && i < start; i = src.indexOf('\n', i + 1)) base++;
+        src = src.slice(start);
+      }
+      const lines = src.replace(/\r/g, '').replace(/^\uFEFF?\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z ?/gm, '').replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').split('\n');
       if (lines.at(-1) === '') lines.pop();
-      let pick = lines.map((_, i) => i);
+      let pick;
       if (grep) {
         let re; try { re = new RegExp(grep, 'i'); } catch (e) { throw no(`grep の正規表現が違います: ${e.message}`); }
         const keep = new Set();
-        lines.forEach((l, i) => { if (re.test(l)) for (let k = Math.max(0, i - context); k <= Math.min(lines.length - 1, i + context); k++) keep.add(k); });
+        for (let i = 0; i < lines.length; i++) if (re.test(lines[i])) for (let k = Math.max(0, i - context); k <= Math.min(lines.length - 1, i + context); k++) keep.add(k);
         pick = [...keep].sort((x, y) => x - y);
-      }
+      } else pick = Array.from({ length: lines.length }, (_, i) => i);
       pick = pick.slice(-Math.min(Math.max(1, Number(tail) || 300), 3000));
       const out = []; let prev = -2;
-      for (const i of pick) { if (i !== prev + 1 && out.length) out.push('…'); out.push(`${i + 1}: ${lines[i]}`); prev = i; }
+      for (const i of pick) { if (i !== prev + 1 && out.length) out.push('…'); out.push(`${base + i + 1}: ${lines[i]}`); prev = i; }
       let text = out.join('\n'); if (text.length > LOG_MAX) text = `…${text.slice(-LOG_MAX)}`;
-      return { total: lines.length, shown: pick.length, text: text || '（合う行はありません）' };
+      return { total: base + lines.length, shown: pick.length, text: text || '（合う行はありません）' };
     },
     async readFile(ctx, a) {
       const p = cleanPath(a.path), ref = refOk(a.ref);
@@ -582,21 +592,82 @@ export function api(env = {}, { fetchImpl = (...a) => globalThis.fetch(...a), no
     }
   }
   const read = async (req) => { if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY) return null; const t = await req.text().catch(() => null); return t !== null && t.length <= MAX_BODY ? t : null; };
-  const describe = (origin) => ({ name: 'bds-lab', lab, version: API_VERSION, mcp: `${origin}/mcp`, rest: `${origin}/api/<tool>`, panel: panelUrl(),
-    auth: { oauth: `${origin}/.well-known/oauth-authorization-server`, bearer: 'Authorization: Bearer <an access token from the OAuth sign-in, or a GitHub token: ghu_ / ghp_ / github_pat_>' },
+  const describe = (origin) => ({ name: 'bds-lab', lab, version: API_VERSION, mcp: `${origin}/mcp`, rest: `${origin}/api/<tool>`, openapi: `${origin}/openapi.json`, panel: panelUrl(),
+    auth: { oauth: `${origin}/.well-known/oauth-authorization-server`, ...(device ? { device: `${origin}/device/code` } : {}), bearer: 'Authorization: Bearer <an access token from the OAuth or device sign-in, or a GitHub token: ghu_ / ghp_ / github_pat_>' },
     tools: TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, action: t.action ?? null, readOnly: Boolean(t.readOnly), input: t.input })) });
+
+  // ---- what a person or an AI finds at the service's own address: the page, the OpenAPI description, llms.txt ----
+  const deviceSteps = (o) => [`POST ${o}/device/code  (client_name=<your name>) → user_code, verification_uri_complete, device_code, client_id, interval`, 'Show the person verification_uri_complete: they press 「許可して GitHub へ」 and Authorize on GitHub', `Every interval seconds: POST ${o}/token  grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=…&client_id=…  → authorization_pending … then access_token (refresh_token: grant_type=refresh_token&client_id=…)`, `Authorization: Bearer <access_token> on POST ${o}/api/<tool> or ${o}/mcp`];
+  function openapi(origin) {
+    const ok = { type: 'object', properties: { ok: { type: 'boolean' }, summary: { type: 'string' }, result: {}, text: { type: 'string', description: 'a file\'s text or a log, as it is' }, audit: { type: 'string' } } };
+    const fail = (d) => ({ description: d, content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, error: { type: 'string' } } } } } });
+    return {
+      openapi: '3.1.0',
+      info: { title: `bds-lab API (${lab})`, version: API_VERSION, description: `Operate the bds-lab repository ${lab} as the signed-in GitHub user: the lab's role policy, confirmations (confirm: true) and audit log apply. Never .github/, auto/policy.json, auto/STOP or .env files. Results are mostly Japanese.${device ? ` No browser? The device sign-in: ${deviceSteps(origin).join(' / ')}` : ''}` },
+      servers: [{ url: origin }],
+      components: { securitySchemes: {
+        oauth: { type: 'oauth2', flows: { authorizationCode: { authorizationUrl: `${origin}/authorize`, tokenUrl: `${origin}/token`, refreshUrl: `${origin}/token`, scopes: { lab: `operate ${lab}` } } } },
+        bearer: { type: 'http', scheme: 'bearer', description: 'an access token from the OAuth or device sign-in, or a GitHub token (ghu_, ghp_, github_pat_)' },
+      } },
+      security: [{ oauth: ['lab'] }, { bearer: [] }],
+      paths: Object.fromEntries(TOOLS.map((t) => [`/api/${t.name}`, { post: { operationId: t.name, summary: t.title, description: t.description, requestBody: { required: false, content: { 'application/json': { schema: t.input } } },
+        responses: { 200: { description: 'done', content: { 'application/json': { schema: ok } } }, 400: fail('the arguments'), 401: fail('no token, or one not taken'), 403: fail('the role or the protected files'), 404: fail('not found'), 409: fail('a stale sha, or something already there'), 428: fail('ask the person, then send confirm: true') } } }])),
+    };
+  }
+  const htmlEsc = (x) => String(x ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+  function home(origin) {
+    const nonce = btoa(String.fromCharCode(...globalThis.crypto.getRandomValues(new Uint8Array(12)))).replace(/[^A-Za-z0-9]/g, ''), p = panelUrl();
+    const css = 'body{font:16px/1.6 system-ui,sans-serif;margin:0;background:#f6f7f9;color:#111}main{max-width:46rem;margin:1.5rem auto;padding:1.25rem 1.5rem;background:#fff;border-radius:12px}h1{font-size:1.35rem}h2{font-size:1.05rem;margin-top:1.5rem}code{font-family:ui-monospace,monospace;background:#eef;padding:.05rem .3rem;border-radius:4px;word-break:break-all}li{margin:.25rem 0}a{color:#2f6fde}@media (prefers-color-scheme:dark){body{background:#111;color:#eee}main{background:#1c1c1f}code{background:#2a2a40}a{color:#8ab4ff}}';
+    const body = `<h1>bds-lab（${htmlEsc(lab)}）</h1>
+<p>${htmlEsc(lab)} の管理パネルのサインインと、AI がラボを直接操作する API です。AI はつないだ人の GitHub のアカウントで、パネルと同じ権限・ラボの役割の決まり・確認・監査ログのまま動きます。<code>.github/</code>・<code>auto/policy.json</code>・<code>auto/STOP</code>・<code>.env</code> は AI からは変えられません。</p>
+${p ? `<p>管理パネル: <a href="${htmlEsc(p)}">${htmlEsc(p)}</a></p>` : ''}
+<h2>Claude から</h2><ul><li>パネルの「準備」→「🤖 AI から操作」の「Claude 用プラグイン」を入れる、または Claude の「コネクタ」→「カスタムコネクタを追加」に <code>${htmlEsc(origin)}/mcp</code></li><li>Claude Code: <code>claude mcp add --transport http bds-lab ${htmlEsc(origin)}/mcp</code></li></ul>
+${device ? `<h2>ブラウザのない AI から（リンクを開いて許可するだけ）</h2><ol>${deviceSteps(origin).map((x) => `<li><code>${htmlEsc(x)}</code></li>`).join('')}</ol>` : ''}
+<h2>ほかの AI・スクリプト</h2><ul><li>道具の一覧: <a href="/api">/api</a> ・ OpenAPI: <a href="/openapi.json">/openapi.json</a> ・ AI 向けの説明: <a href="/llms.txt">/llms.txt</a></li><li><code>POST ${htmlEsc(origin)}/api/&lt;道具&gt;</code>（本文は引数の JSON。読むだけの道具は GET と ?引数= でも）</li></ul>
+<h2>道具（${TOOLS.length}）</h2><ul>${TOOLS.map((t) => `<li><code>${htmlEsc(t.name)}</code> ${htmlEsc(t.title)}${t.readOnly ? '' : '（書き込み）'}</li>`).join('')}</ul>`;
+    return new Response(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>bds-lab（${htmlEsc(lab)}）</title><style nonce="${nonce}">${css}</style></head><body><main>${body}</main></body></html>`, { status: 200, headers: { ...HEADERS, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': `default-src 'none'; style-src 'nonce-${nonce}'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'` } });
+  }
+  const llms = (origin) => `# bds-lab (${lab})
+
+> The sign-in service and the API for AI of ${lab}: a bds-lab, where AI makes Minecraft Bedrock addons and GitHub Actions proves them on a real Bedrock Dedicated Server. An AI operates the lab as the GitHub user who connected it — the lab's role policy, confirmations and audit log apply; never .github/, auto/policy.json, auto/STOP or .env files.
+
+- MCP (Streamable HTTP, OAuth 2.1 with dynamic registration and PKCE): ${origin}/mcp
+- HTTP: POST ${origin}/api/<tool> with a JSON body (read-only tools also GET with ?args); the tools: ${origin}/api ; OpenAPI 3.1: ${origin}/openapi.json
+- Auth: Authorization: Bearer <an access token from the OAuth${device ? ' or device' : ''} sign-in, or a GitHub token>
+${device ? `
+## No browser? The device sign-in (RFC 8628)
+
+${deviceSteps(origin).map((x, i) => `${i + 1}. ${x}`).join('\n')}
+` : ''}
+## Tools
+
+${TOOLS.map((t) => `- ${t.name}${t.readOnly ? '' : ' (write)'}: ${t.description}`).join('\n')}
+
+Start with lab_status. To fix a failure: runs_list → run_detail → run_log (grep) → file_read → file_write (with the sha read) → unit_run → run_detail. When a tool says confirmation is needed, ask the person, then send confirm: true.
+`;
+  /** a read-only tool's arguments from a query string (GET /api/<tool>?k=v), typed by its schema */
+  const fromQuery = (t, q) => Object.fromEntries([...q].map(([k, v]) => { const type = t.input.properties?.[k]?.type; if (type === 'boolean') return [k, v === 'true' ? true : v === 'false' ? false : v]; if (type === 'object' || type === 'array') { try { return [k, JSON.parse(v)]; } catch { return [k, v]; } } return [k, v]; }));
 
   return async function route(req) {
     const url = new URL(req.url), path = url.pathname, origin = url.origin;
+    if (req.method === 'GET' && lab && (path === '/' || path === '/openapi.json' || path === '/llms.txt')) {
+      if (path === '/') return home(origin);
+      if (path === '/openapi.json') return reply(200, openapi(origin));
+      return new Response(llms(origin), { status: 200, headers: { ...HEADERS, ...CORS, 'content-type': 'text/plain; charset=utf-8' } });
+    }
     if (path !== '/mcp' && path !== '/api' && !path.startsWith('/api/')) return null;
     try {
       if (req.method === 'OPTIONS') return reply(204, null);
       if (path === '/api' && req.method === 'GET') return lab ? reply(200, describe(origin)) : reply(503, { error: 'lab', message: 'LAB_SLUG がありません: auth-deploy.yml でサービスを置き直してください' });
-      if (req.method !== 'POST') return reply(405, { error: 'method' }, { allow: 'POST, OPTIONS' });
+      const getTool = req.method === 'GET' && path.startsWith('/api/') ? BY[path.slice(5)] : null;
+      if (req.method !== 'POST' && !(getTool && getTool.readOnly)) return reply(405, { error: 'method', message: getTool ? '書き込む道具は POST で' : 'POST で' }, { allow: getTool ? 'POST, OPTIONS' : 'POST, GET, OPTIONS' });
+      // (MCP's version header: a version this server does not speak is refused, as the spec asks)
+      const pv = req.headers.get('mcp-protocol-version');
+      if (path === '/mcp' && pv && !MCP_VERSIONS.includes(pv)) return reply(400, err(null, -32600, `Unsupported MCP-Protocol-Version: ${pv} (${MCP_VERSIONS.join(', ')})`));
       if (!lab) return reply(503, { error: 'lab', message: 'LAB_SLUG がありません: auth-deploy.yml でサービスを置き直してください' });
       const w = await who(req, origin);
       if (w.error) return reply(401, { error: w.error === 'none' ? 'unauthorized' : 'invalid_token', message: 'Authorization: Bearer <トークン> が要ります（MCP の OAuth で受け取ったもの、または GitHub のトークン）' }, { 'www-authenticate': `Bearer realm="bds-lab", resource_metadata="${origin}/.well-known/oauth-protected-resource"${w.error === 'invalid' ? ', error="invalid_token"' : ''}` });
-      const text = await read(req);
+      const text = req.method === 'GET' ? '' : await read(req);
       if (text === null) return reply(413, path === '/mcp' ? err(null, -32600, 'Request too large') : { ok: false, error: '大きすぎます' });
       const ctx = context(w, origin);
       if (path === '/mcp') {
@@ -609,7 +680,7 @@ export function api(env = {}, { fetchImpl = (...a) => globalThis.fetch(...a), no
       }
       const t = BY[path.slice(5)];
       if (!t) return reply(404, { ok: false, error: `知らない道具です: ${path.slice(5)}（GET /api で一覧）` });
-      let args = {};
+      let args = req.method === 'GET' ? fromQuery(t, url.searchParams) : {};
       if (text.trim()) { try { args = JSON.parse(text); } catch { return reply(400, { ok: false, error: '本文は JSON で' }); } }
       const r = await call(t, ctx, args);
       return r.error ? reply(r.status >= 400 && r.status < 600 ? r.status : 400, { ok: false, error: r.error }) : reply(200, { ok: true, summary: r.summary, result: r.result, ...(typeof r.raw === 'string' ? { text: r.raw } : {}), ...(r.audit ? { audit: r.audit } : {}) });

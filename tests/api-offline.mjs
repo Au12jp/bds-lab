@@ -535,6 +535,125 @@ await t('a lab without LAB_SLUG: the API says so (503), the sign-in goes on; wor
   }
 });
 
+await t('the device sign-in (RFC 8628): a code for an AI with no browser; pending until the person opens the link, compares the code and says yes here and on GitHub; then the tokens once (taken); said no: access_denied; ten minutes: expired; another client: refused; the codes typed any way; no store: not offered', async () => {
+  const store = A.memoryStore({ now: () => clock }), authD = A.handler(ENV, { now: () => clock, store }), labD = API.api(ENV, { self: authD, now: () => clock, sleep: async () => {}, device: true });
+  const HD = async (url, init = {}) => { const res = (await labD(new Request(url, init))) ?? (await authD(new Request(url, init))); const text = res.status === 204 || res.status === 302 ? '' : await res.text(); const a = { status: res.status, headers: res.headers, location: res.headers.get('location'), cookies: res.headers.getSetCookie(), text, json: (() => { try { return JSON.parse(text); } catch { return null; } })() }; answers.push(a); return a; };
+  const meta = await HD(`${AUTH}/.well-known/oauth-authorization-server`);
+  ok(meta.json.device_authorization_endpoint === `${AUTH}/device/code` && meta.json.grant_types_supported.includes('urn:ietf:params:oauth:grant-type:device_code'), meta.text);
+  eq((await HD(`${AUTH}/health`)).json.device, true);
+  const start = async (name = 'Claude（サンドボックス）<b>') => (await HD(`${AUTH}/device/code`, form({ client_name: name }))).json;
+  const d = await start();
+  ok(/^[BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4}$/.test(d.user_code) && d.verification_uri === `${AUTH}/device` && d.verification_uri_complete === `${AUTH}/device?code=${d.user_code}` && d.interval === 5 && d.expires_in === 600 && /^bdsc1\./.test(d.client_id) && d.device_code.length >= 43, JSON.stringify(d));
+  const poll = (dd, over = {}) => HD(`${AUTH}/token`, form({ grant_type: 'urn:ietf:params:oauth:grant-type:device_code', device_code: dd.device_code, client_id: dd.client_id, ...over }));
+  eq((await poll(d)).json.error, 'authorization_pending', 'before the person says yes');
+  const other = await HD(`${AUTH}/register`, jsonPost({ redirect_uris: [RU] }));
+  eq((await poll(d, { client_id: other.json.client_id })).json.error, 'invalid_grant', 'another client');
+  eq((await poll(d, { device_code: 'x'.repeat(43) })).json.error, 'expired_token', 'a code that is not one');
+  // a device client cannot take the redirect way (it has no address)
+  eq((await HD(`${AUTH}/authorize?${new URLSearchParams({ response_type: 'code', client_id: d.client_id, redirect_uri: RU, code_challenge: sha256(VERIFIER), code_challenge_method: 'S256' })}`)).status, 400, 'no redirect for a device client');
+  // the person: the box to type in, the code in any case and without its dash, a wrong one
+  const box = await HD(`${AUTH}/device`);
+  ok(box.status === 200 && /name="code"/.test(box.text), 'a box to type the code in');
+  eq((await HD(`${AUTH}/device?code=ABCD-1234`)).status, 400, 'a code of another form');
+  eq((await HD(`${AUTH}/device?code=BBBB-BBBB`)).status, 400, 'a code nobody asked for');
+  const ask = await HD(`${AUTH}/device?code=${d.user_code.replace('-', '').toLowerCase()}`);
+  eq(ask.status, 200, 'typed in lower case, no dash');
+  ok(ask.text.includes(d.user_code) && ask.text.includes('Claude（サンドボックス）&lt;b&gt;') && !ask.text.includes('<b>」') && /あなた自身が AI に/.test(ask.text) && ask.text.includes('o/lab'), 'the code to compare, the name as text, the warning, the lab');
+  ok(/form-action 'self' http:\/\/127\.0\.0\.1:\d+\/web/.test(ask.headers.get('content-security-policy')), ask.headers.get('content-security-policy'));
+  const nonce = /__Host-bdslab_consent=([^;]+)/.exec(ask.cookies.join('\n'))[1], req = /name="req" value="([^"]+)"/.exec(ask.text)[1], csrf = /name="csrf" value="([^"]+)"/.exec(ask.text)[1];
+  const send = (body, headers = {}) => HD(`${AUTH}/device`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers }, body: new URLSearchParams(body).toString() });
+  eq((await send({ req, csrf })).status, 403, 'without its cookie');
+  eq((await send({ req, csrf: `${csrf.slice(0, -2)}AA` }, { cookie: `__Host-bdslab_consent=${nonce}` })).status, 403, 'another CSRF value');
+  const yes = await send({ req, csrf }, { cookie: `__Host-bdslab_consent=${nonce}`, 'sec-fetch-site': 'same-origin' });
+  ok(yes.status === 302 && yes.location.startsWith(`${GH}/web/login/oauth/authorize?`), `to GitHub: ${yes.status} ${yes.location}`);
+  const st = /__Host-bdslab_state=([^;]+)/.exec(yes.cookies.join('\n'))[1];
+  const cb = await fetch(yes.location, { redirect: 'manual' }).then((x) => x.headers.get('location'));
+  eq((await poll(d)).json.error, 'authorization_pending', 'still pending until GitHub came back');
+  const done = await HD(cb, { headers: { cookie: `__Host-bdslab_state=${st}` } });
+  ok(done.status === 200 && /AI がつながりました/.test(done.text) && !/gh[ur]_|bdsl_/.test(done.text), `told to go back to the AI, no token on the page: ${done.text.slice(0, 300)}`);
+  const got = await poll(d);
+  ok(got.status === 200 && /^bdsl_at\./.test(got.json.access_token) && /^bdsl_rt\./.test(got.json.refresh_token) && !/gh[ur]_/.test(got.text), got.text);
+  eq((await poll(d)).json.error, 'expired_token', 'the tokens once: taken');
+  const use = await HD(`${AUTH}/api/lab_status`, { headers: { authorization: `Bearer ${got.json.access_token}` } });
+  ok(use.status === 200 && use.json.result.you.login === 'o', `the AI works the lab: ${use.text.slice(0, 200)}`);
+  const rf = await HD(`${AUTH}/token`, form({ grant_type: 'refresh_token', refresh_token: got.json.refresh_token, client_id: d.client_id }));
+  ok(rf.status === 200 && /^bdsl_at\./.test(rf.json.access_token), `refresh with the device's client id: ${rf.text}`);
+  // said no on this service's page: the AI hears access_denied, once
+  const d2 = await start('another');
+  const ask2 = await HD(`${AUTH}/device?code=${d2.user_code}`), n2 = /__Host-bdslab_consent=([^;]+)/.exec(ask2.cookies.join('\n'))[1];
+  const no2 = await send({ req: /name="req" value="([^"]+)"/.exec(ask2.text)[1], csrf: /name="csrf" value="([^"]+)"/.exec(ask2.text)[1], deny: '1' }, { cookie: `__Host-bdslab_consent=${n2}` });
+  ok(no2.status === 200 && /やめました/.test(no2.text), no2.text.slice(0, 200));
+  eq([(await poll(d2)).json.error, (await poll(d2)).json.error], ['access_denied', 'expired_token']);
+  eq((await HD(`${AUTH}/device?code=${d2.user_code}`)).status, 400, 'a code said no to is not offered again');
+  // ten minutes: the code and the link gone
+  const d3 = await start('late');
+  clock += 11 * 60_000;
+  eq([(await HD(`${AUTH}/device?code=${d3.user_code}`)).status, (await poll(d3)).json.error], [400, 'expired_token']);
+  clock -= 11 * 60_000;
+  // the service without a store: the device sign-in not offered
+  eq((await H(`${AUTH}/device/code`, form({ client_name: 'x' }))).json.error, 'unsupported_grant_type');
+  ok(!(await H(`${AUTH}/.well-known/oauth-authorization-server`)).json.device_authorization_endpoint, 'not in the metadata either');
+});
+
+await t('the store: worker.mjs\'s Durable Object (put with its time, get, take once, a bad key refused, the alarm sweeps what ran out) and doStore through a namespace; memoryStore the same', async () => {
+  const W = await imp('auth/worker.mjs');
+  const mem = new Map(); let alarm = null;
+  const state = { storage: { async put(k, v) { mem.set(k, structuredClone(v)); }, async get(k) { return mem.has(k) ? structuredClone(mem.get(k)) : undefined; }, async delete(k) { mem.delete(k); }, async getAlarm() { return alarm; }, async setAlarm(x) { alarm = x; }, async list({ limit = 1000 } = {}) { return new Map([...mem].slice(0, limit)); } } };
+  const so = new W.Store(state), op = async (o) => { const r = await so.fetch(new Request('https://store/', { method: 'POST', body: JSON.stringify(o) })); return { status: r.status, j: await r.json() }; };
+  eq((await op({ op: 'put', key: 'd:abc', value: { st: 'wait' }, ttl: 60_000 })).j, { ok: true });
+  ok(alarm !== null, 'an alarm set to sweep');
+  eq((await op({ op: 'get', key: 'd:abc' })).j.value, { st: 'wait' });
+  eq((await op({ op: 'take', key: 'd:abc' })).j.value, { st: 'wait' });
+  eq((await op({ op: 'take', key: 'd:abc' })).j.value, null, 'once');
+  eq((await op({ op: 'get', key: '../x' })).status, 400, 'a key of another form');
+  eq((await op({ op: 'drop', key: 'd:abc' })).status, 400, 'an op that is not one');
+  mem.set('u:OLD', { v: 'x', exp: Date.now() - 1 });
+  eq((await op({ op: 'get', key: 'u:OLD' })).j.value, null, 'ran out: nothing');
+  ok(!mem.has('u:OLD'), 'and gone');
+  mem.set('u:OLD2', { v: 'x', exp: Date.now() - 1 }); mem.set('u:LIVE', { v: 'y', exp: Date.now() + 60_000 });
+  await so.alarm();
+  ok(!mem.has('u:OLD2') && mem.has('u:LIVE'), 'the alarm sweeps what ran out, keeps the rest');
+  const ns = { idFromName: (n) => `id:${n}`, get: () => ({ fetch: (u, init) => so.fetch(new Request(u, init)) }) }, ds = W.doStore(ns);
+  await ds.put('d:k1', { a: 1 }, 60_000);
+  eq([await ds.get('d:k1'), await ds.take('d:k1'), await ds.take('d:k1')], [{ a: 1 }, { a: 1 }, null], 'doStore: put, get, take once');
+  let t0 = 0; const ms = A.memoryStore({ now: () => t0 });
+  await ms.put('d:x', { b: 2 }, 5000);
+  const copy = await ms.get('d:x'); copy.b = 3;
+  eq([(await ms.get('d:x')).b, await ms.take('d:x'), await ms.take('d:x')], [2, { b: 2 }, null], 'copies; take once');
+  await ms.put('d:y', 1, 5000); t0 = 6000;
+  eq(await ms.get('d:y'), null, 'ran out');
+});
+
+await t('found at the service\'s own address: the page (what it is, how Claude and others connect, the device steps, the tools), OpenAPI 3.1 (every tool, its schema, OAuth and bearer), llms.txt; read-only tools by GET with typed query values, writes only by POST; an MCP version not spoken refused; a long log numbered as in the whole', async () => {
+  const labD = API.api(ENV, { self: auth, now: () => clock, sleep: async () => {}, device: true });
+  const get = async (p, headers = {}) => { const r = await labD(new Request(`${AUTH}${p}`, { headers })); return { status: r.status, type: r.headers.get('content-type'), csp: r.headers.get('content-security-policy'), text: await r.text() }; };
+  const home = await get('/');
+  ok(home.status === 200 && /text\/html/.test(home.type) && home.text.includes(`${AUTH}/mcp`) && home.text.includes('device/code') && home.text.includes('lab_status') && /default-src 'none'/.test(home.csp) && !/<script/i.test(home.text), home.text.slice(0, 300));
+  const oa = JSON.parse((await get('/openapi.json')).text);
+  ok(oa.openapi === '3.1.0' && Object.keys(oa.paths).length === 34 && oa.paths['/api/file_write'].post.requestBody.content['application/json'].schema.properties.sha && oa.components.securitySchemes.oauth.flows.authorizationCode.tokenUrl === `${AUTH}/token` && oa.components.securitySchemes.bearer.scheme === 'bearer', JSON.stringify(oa).slice(0, 300));
+  ok(new Set(Object.values(oa.paths).map((x) => x.post.operationId)).size === 34, 'an operationId each');
+  const llms = await get('/llms.txt');
+  ok(/text\/plain/.test(llms.type) && llms.text.includes(`${AUTH}/mcp`) && llms.text.includes('urn:ietf:params:oauth:grant-type:device_code') && llms.text.includes('- file_write (write):'), llms.text.slice(0, 300));
+  const owner = { authorization: 'Bearer ghp_OwnerToken0123456789abcdefghij' };
+  const g = await get('/api/runs_list?workflow=verify.yml&limit=5', owner);
+  ok(g.status === 200 && JSON.parse(g.text).result.runs.some((r) => r.id === 100) && JSON.parse(g.text).result.runs.every((r) => r.file === 'verify.yml'), g.text.slice(0, 200));
+  const lg = await get('/api/run_log?job_id=1001&tail=2', owner);
+  ok(lg.status === 200 && JSON.parse(lg.text).text.split('\n').length === 2, lg.text.slice(0, 200));
+  eq((await get('/api/secret_set?name=X&value=y', owner)).status, 405, 'a write by GET');
+  eq((await get('/api/runs_list?nope=1', owner)).status, 400, 'an unknown query argument');
+  const v = await labD(new Request(`${AUTH}/mcp`, jsonPost({ jsonrpc: '2.0', id: 1, method: 'ping' }, { authorization: 'Bearer ghp_OwnerToken0123456789abcdefghij', 'mcp-protocol-version': '1999-01-01' })));
+  ok(v.status === 400 && /Unsupported MCP-Protocol-Version/.test(await v.text()), 'an MCP version not spoken');
+  const v2 = await labD(new Request(`${AUTH}/mcp`, jsonPost({ jsonrpc: '2.0', id: 1, method: 'ping' }, { authorization: 'Bearer ghp_OwnerToken0123456789abcdefghij', 'mcp-protocol-version': '2025-06-18' })));
+  eq(v2.status, 200, 'one it speaks');
+  // a long log: only its end looked at, lines numbered as in the whole
+  const long = Array.from({ length: 30000 }, (_, i) => `2026-10-17T00:00:00.0000000Z line ${i + 1} ${'x'.repeat(20)}`).join('\n');
+  G.logs[7777] = long; G.jobs[777] = [{ id: 7777, name: 'long', status: 'completed', conclusion: 'failure', steps: [] }]; G.runs.push(mkRun(777, 'verify.yml', 'failure'));
+  const t2 = JSON.parse((await get('/api/run_log?run_id=777&tail=3', owner)).text);
+  ok(t2.text === `29998: line 29998 ${'x'.repeat(20)}\n29999: line 29999 ${'x'.repeat(20)}\n30000: line 30000 ${'x'.repeat(20)}` && t2.result.lines === 30000, `${t2.text}\n${JSON.stringify(t2.result)}`);
+  const t3 = JSON.parse((await get('/api/run_log?run_id=777&grep=line%2029990%20&context=0', owner)).text);
+  ok(t3.text === `29990: line 29990 ${'x'.repeat(20)}`, t3.text);
+});
+
 await t('the lab\'s Claude plugin (panel/lib/pluginpack.mjs): its MCP server (this lab\'s /mcp over HTTP), a skill and a README in a zip any unzip reads (stored, CRC-32 right, UTF-8 names, the same bytes each time); a wrong address or lab refused; the command line builds the same', async () => {
   const PK = await imp('panel/lib/pluginpack.mjs'), CLI = await imp('common/claude-plugin.mjs');
   const opts = { mcpUrl: 'https://bds-lab-auth.o.workers.dev/mcp', lab: 'o/lab', panelUrl: 'https://o.github.io/lab/' };

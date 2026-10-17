@@ -22,8 +22,13 @@
 //   GET /authorize?response_type=code&client_id&redirect_uri&state&code_challenge(S256)  → the consent page
 //   POST /authorize (the page's form: its signed request and a CSRF value bound to a cookie) → 302 to GitHub
 //   GET /callback (the state says MCP)    → 302 to <redirect_uri>?code=<sealed>&state&iss
-//   POST /token grant_type=authorization_code (PKCE) | refresh_token  → { access_token, refresh_token, expires_in }
-export const VERSION = '2';
+//   POST /token grant_type=authorization_code (PKCE) | refresh_token | device_code  → { access_token, refresh_token, expires_in }
+// and, for an AI with no browser of its own (a CLI, a script, a chat in a sandbox), the device sign-in (RFC 8628) — the one
+// part that needs a short-lived store (store: a Durable Object on Cloudflare, memory on node.mjs; none: not offered):
+//   POST /device/code {client_name}       → { device_code, user_code, verification_uri(_complete), interval, client_id }
+//   GET /device?code=XXXX-XXXX → the consent page (the code to compare) → POST /device → GitHub → /callback → 「つながりました」
+//   POST /token grant_type=urn:ietf:params:oauth:grant-type:device_code → authorization_pending … then the tokens, once
+export const VERSION = '3';
 /** what only the real GitHub can confirm (kept in this one place; the tests use a fake GitHub) */
 export const GITHUB = {
   // (GitHub's OAuth web flow takes PKCE: code_challenge S256 at /authorize, code_verifier at /access_token — 要実測)
@@ -113,6 +118,25 @@ export function redirectOk(s) {
   return /^[a-z][a-z0-9+.-]{1,40}:$/.test(u.protocol) && !/^(javascript|data|file|blob|about|vbscript|ws|wss|ftp|mailto|tel|sms|chrome|chrome-extension|intent|filesystem|view-source|jar|content|res|resource|ms-[a-z0-9-]+):$/.test(u.protocol);
 }
 const esc = (x) => String(x ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+/** the device sign-in's short-lived store in memory (node.mjs, the tests): { get, put(key, value, ttlMs), take } — each value
+ *  a copy, gone after its time; take reads and deletes at once */
+export function memoryStore({ now = () => Date.now() } = {}) {
+  const m = new Map();
+  const live = (k) => { const x = m.get(k); if (!x) return null; if (!(x.exp > now())) { m.delete(k); return null; } return x.v; };
+  return {
+    async get(k) { const v = live(k); return v === null ? null : structuredClone(v); },
+    async put(k, v, ttl) { m.set(k, { v: structuredClone(v), exp: now() + Math.min(Math.max(Number(ttl) || 0, 1000), 3_600_000) }); if (m.size > 5000) for (const [kk, x] of m) if (!(x.exp > now())) m.delete(kk); },
+    async take(k) { const v = live(k); m.delete(k); return v; },
+  };
+}
+/** the device sign-in's user code: 8 of 20 consonants that are hard to confuse (RFC 8628's example), shown XXXX-XXXX */
+const UC = 'BCDFGHJKLMNPQRSTVWXZ';
+function userCode() {
+  let out = '';
+  while (out.length < 8) for (const b of globalThis.crypto.getRandomValues(new Uint8Array(16))) if (b < 240 && out.length < 8) out += UC[b % 20];
+  return out;
+}
+const DEVICE_TTL = 600_000, DEVICE_EVERY = 5;
 /** an address with these added to its query (pure): its own query kept, empty values left out */
 export function withQuery(addr, params) {
   const u = new URL(addr);
@@ -127,7 +151,7 @@ export function tokensOf(j) {
 }
 
 /** env → async (Request) → Response. fetchImpl reaches GitHub (a fake in tests); now is the clock (tests move it) */
-export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now = () => Date.now() } = {}) {
+export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now = () => Date.now(), store = null } = {}) {
   const c = config(env ?? {}), subtle = () => globalThis.crypto.subtle;
   let keyP = null;
   const key = () => (keyP ??= subtle().importKey('raw', enc.encode(c.stateSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']));
@@ -153,10 +177,11 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
   const handTo = (back, part) => { const i = back.indexOf('#'), frag = i < 0 ? '' : back.slice(i + 1); return `${i < 0 ? back : back.slice(0, i)}#${frag ? `${frag}&` : ''}${part}`; };
   /** a sign-in begun → { state, cookie, k }: k (16 random bytes) goes in the cookie alone, signed (k.sig); the state GitHub's
    *  address carries has where it returns (r), k's keyed hash (h: k cannot be had from it) and when (t), signed */
-  async function begin(r, m = null) {
+  async function begin(r, m = null, d = null) {
     const k = b64url(globalThis.crypto.getRandomValues(new Uint8Array(16)));
-    // (m: an AI client's request — where it returns, its state and PKCE challenge, its id's hash — for MCP's sign-in)
-    const payload = b64url(enc.encode(JSON.stringify({ r, h: b64url(await mac('bind', k)), t: now(), ...(m ? { m } : {}) })));
+    // (m: an AI client's request — where it returns, its state and PKCE challenge, its id's hash — for MCP's sign-in; d: the
+    // device sign-in's key in the store)
+    const payload = b64url(enc.encode(JSON.stringify({ r, h: b64url(await mac('bind', k)), t: now(), ...(m ? { m } : {}), ...(d ? { d } : {}) })));
     return { state: `${payload}.${b64url(await mac('state', payload))}`, cookie: `${k}.${b64url(await mac('cookie', k))}`, k };
   }
   async function openState(state) {
@@ -165,7 +190,8 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
     try {
       const s = JSON.parse(dec.decode(unb64url(m[1])));
       const mcpOk = s?.m === undefined || (s.m && typeof s.m === 'object' && redirectOk(s.m.ru) && typeof s.m.cc === 'string' && typeof s.m.ch === 'string');
-      return typeof s?.r === 'string' && /^[A-Za-z0-9_-]{43}$/.test(String(s.h)) && Number.isFinite(s.t) && mcpOk ? s : null;
+      const devOk = s?.d === undefined || /^[A-Za-z0-9_-]{43}$/.test(String(s.d));
+      return typeof s?.r === 'string' && /^[A-Za-z0-9_-]{43}$/.test(String(s.h)) && Number.isFinite(s.t) && mcpOk && devOk ? s : null;
     } catch { return null; }
   }
   /** the cookie's value → its k, or null when this service did not sign it */
@@ -205,6 +231,7 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
     // (a state this service did not sign: no address to trust — nothing is followed)
     if (!s) return reply(400, { error: 'state' }, clear);
     if (s.m) return mcpCallback(url, req, s);
+    if (s.d) return deviceCallback(url, req, s);
     const back = returnOf(s.r);
     if (!back) return reply(400, { error: 'return' }, clear);
     const go = (part) => reply(302, null, { ...clear, location: handTo(back, part) });
@@ -252,7 +279,8 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
   const CONSENT = '__Host-bdslab_consent';
   const consentCookie = (v, age) => `${CONSENT}=${v}; Max-Age=${age}; Path=/; Secure; HttpOnly; SameSite=Strict`;
   const consentOf = (req) => { for (const part of String(req.headers.get('cookie') ?? '').split(';')) { const i = part.indexOf('='); if (i > 0 && part.slice(0, i).trim() === CONSENT) return part.slice(i + 1).trim(); } return null; };
-  const asMeta = (o) => ({ issuer: o, authorization_endpoint: `${o}/authorize`, token_endpoint: `${o}/token`, registration_endpoint: `${o}/register`, response_types_supported: ['code'], grant_types_supported: ['authorization_code', 'refresh_token'], code_challenge_methods_supported: ['S256'], token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'], scopes_supported: ['lab'], service_documentation: c.panels[0]?.href ?? o });
+  const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
+  const asMeta = (o) => ({ issuer: o, authorization_endpoint: `${o}/authorize`, token_endpoint: `${o}/token`, registration_endpoint: `${o}/register`, ...(store ? { device_authorization_endpoint: `${o}/device/code` } : {}), response_types_supported: ['code'], grant_types_supported: ['authorization_code', 'refresh_token', ...(store ? [DEVICE_GRANT] : [])], code_challenge_methods_supported: ['S256'], token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'], scopes_supported: ['lab'], service_documentation: c.panels[0]?.href ?? o });
   const prMeta = (o) => ({ resource: `${o}/mcp`, authorization_servers: [o], scopes_supported: ['lab'], bearer_methods_supported: ['header'], resource_name: `bds-lab${c.lab ? `（${c.lab}）` : ''}`, resource_documentation: c.panels[0]?.href ?? o });
   /** a page of this service's own (the consent; or why not): text escaped, a style of its own nonce, forms only where they go */
   function page(status, title, body, { formTo = [], cookies = [] } = {}) {
@@ -267,7 +295,12 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
   async function openClient(id) {
     const m = /^bdsc1\.([A-Za-z0-9_-]{1,6000})\.([A-Za-z0-9_-]{43})$/.exec(String(id ?? ''));
     if (!m || !(await macOk('client', m[1], m[2]))) return null;
-    try { const j = JSON.parse(dec.decode(unb64url(m[1]))); return Array.isArray(j?.u) && j.u.length && j.u.every(redirectOk) ? { id: String(id), uris: j.u, name: String(j.n ?? ''), method: String(j.a ?? 'none') } : null; } catch { return null; }
+    try {
+      const j = JSON.parse(dec.decode(unb64url(m[1])));
+      // (a device client — minted by /device/code — has no address to return to: it can only use the device grant and refresh)
+      if (j?.d === 1 && Array.isArray(j.u) && !j.u.length) return { id: String(id), uris: [], name: String(j.n ?? ''), method: 'none', device: true };
+      return Array.isArray(j?.u) && j.u.length && j.u.every(redirectOk) ? { id: String(id), uris: j.u, name: String(j.n ?? ''), method: String(j.a ?? 'none') } : null;
+    } catch { return null; }
   }
   async function register(req) {
     const j = await readJson(req, 8192), bad = (d) => reply(400, { error: 'invalid_client_metadata', error_description: d }, OPEN);
@@ -360,13 +393,16 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
     if (gh.refresh_token) out.refresh_token = await box.seal('refresh', { gh: gh.refresh_token, ch: chash, sc: scope || 'lab', exp: now() + (gh.refresh_token_expires_in ?? 180 * 86400) * 1000 });
     return reply(200, out, { ...OPEN, pragma: 'no-cache' });
   }
+  /** a form's or a JSON object's fields as strings (OAuth's endpoints take either), null when it is neither */
+  async function params(req) {
+    if (Number(req.headers.get('content-length') ?? 0) > 16384) return null;
+    const text = (await req.text().catch(() => '')).slice(0, 16384), ct = req.headers.get('content-type') ?? '';
+    if (!/json/i.test(ct)) return Object.fromEntries(new URLSearchParams(text));
+    try { const j = JSON.parse(text); return j && typeof j === 'object' && !Array.isArray(j) ? Object.fromEntries(Object.entries(j).map(([k, v]) => [k, String(v)])) : null; } catch { return null; }
+  }
   async function token(req, url) {
     const bad = (error, status = 400) => reply(status, { error }, OPEN);
-    if (Number(req.headers.get('content-length') ?? 0) > 16384) return bad('invalid_request');
-    const text = (await req.text().catch(() => '')).slice(0, 16384), ct = req.headers.get('content-type') ?? '';
-    let p;
-    if (/json/i.test(ct)) { try { const j = JSON.parse(text); p = j && typeof j === 'object' && !Array.isArray(j) ? Object.fromEntries(Object.entries(j).map(([k, v]) => [k, String(v)])) : null; } catch { p = null; } }
-    else p = Object.fromEntries(new URLSearchParams(text));
+    const p = await params(req);
     if (!p) return bad('invalid_request');
     let cid = p.client_id, secret = p.client_secret;
     const basic = /^Basic\s+([A-Za-z0-9+/=]{1,8000})$/i.exec(req.headers.get('authorization') ?? '');
@@ -389,17 +425,112 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
       if (!t.ok) return t.error === 'github' ? bad('temporarily_unavailable', 503) : bad('invalid_grant');
       return issue(t.tokens, chash, r.sc, url);
     }
+    if (p.grant_type === DEVICE_GRANT && store) {
+      const key = `d:${await sha(String(p.device_code ?? ''))}`, rec = await store.get(key);
+      if (!rec) return bad('expired_token');
+      if (rec.ch !== chash) return bad('invalid_grant');
+      if (rec.st === 'wait') return bad('authorization_pending');
+      const got = await store.take(key);
+      if (!got || got.st === 'no') return bad(got ? 'access_denied' : 'expired_token');
+      const sealed = got.st === 'ok' ? await box.open('code', got.gh) : null;
+      return sealed ? issue(sealed.gh, chash, sealed.sc, url) : bad('expired_token');
+    }
     return bad('unsupported_grant_type');
   }
-  const MCP_ROUTES = { '/.well-known/oauth-authorization-server': 'GET', '/.well-known/oauth-protected-resource': 'GET', '/.well-known/oauth-protected-resource/mcp': 'GET', '/register': 'POST', '/authorize': 'GET POST', '/token': 'POST' };
+  // ---- the device sign-in (RFC 8628) ----
+  const cleanName = (x) => String(x ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80);
+  async function deviceCode(req, url) {
+    if (!store) return reply(400, { error: 'unsupported_grant_type', error_description: 'this service keeps no store: the device sign-in is off' }, OPEN);
+    const p = await params(req);
+    if (!p) return reply(400, { error: 'invalid_request' }, OPEN);
+    let client = null;
+    if (p.client_id) { client = await openClient(p.client_id); if (!client) return reply(401, { error: 'invalid_client' }, OPEN); }
+    const name = cleanName(p.client_name) || client?.name || 'AI のアプリ';
+    if (!client) {
+      const payload = b64url(enc.encode(JSON.stringify({ u: [], n: name, a: 'none', d: 1, t: Math.floor(now() / 1000) })));
+      client = { id: `bdsc1.${payload}.${b64url(await mac('client', payload))}`, name };
+    }
+    const dc = b64url(globalThis.crypto.getRandomValues(new Uint8Array(32))), uc = userCode(), dk = await sha(dc);
+    await store.put(`d:${dk}`, { st: 'wait', ch: await sha(client.id), n: name, uc, sc: 'lab' }, DEVICE_TTL);
+    await store.put(`u:${uc}`, dk, DEVICE_TTL);
+    const shown = `${uc.slice(0, 4)}-${uc.slice(4)}`;
+    return reply(200, { device_code: dc, user_code: shown, verification_uri: `${url.origin}/device`, verification_uri_complete: `${url.origin}/device?code=${shown}`, expires_in: DEVICE_TTL / 1000, interval: DEVICE_EVERY, client_id: client.id }, OPEN);
+  }
+  const ucOf = (x) => { const u = String(x ?? '').toUpperCase().replace(/[^A-Z]/g, ''); return u.length === 8 && [...u].every((ch) => UC.includes(ch)) ? u : null; };
+  /** GET /device: the code (typed, or in the link) → this service's own page: the AI by name, the code to compare with the AI's,
+   *  what it may do — and the two buttons; no code: a box to type it in */
+  async function deviceAsk(url) {
+    if (!store) return stop(400, 'このサービスでは、コードでつなぐ方法は使えません。');
+    const raw = url.searchParams.get('code');
+    if (!raw) return page(200, 'AI をつなぐ', '<p>AI の画面に出ているコード（XXXX-XXXX）を入れてください。</p><form method="get" action="/device"><p><input name="code" autocomplete="off" autocapitalize="characters" placeholder="XXXX-XXXX" maxlength="12" required></p><div class="row"><button class="go" type="submit">つぎへ</button></div></form>');
+    const uc = ucOf(raw), dk = uc ? await store.get(`u:${uc}`) : null, rec = dk ? await store.get(`d:${dk}`) : null;
+    if (!rec || rec.st !== 'wait') return stop(400, 'このコードは使えません（10 分で切れます。使ったコードも使えません）。AI に、もう一度つなぐように頼んでください。');
+    const nonce = b64url(globalThis.crypto.getRandomValues(new Uint8Array(16)));
+    const payload = b64url(enc.encode(JSON.stringify({ dk, t: now() })));
+    const signed = `${payload}.${b64url(await mac('device-req', payload))}`, csrf = b64url(await mac('consent', `${nonce}\n${payload}`)), shown = `${uc.slice(0, 4)}-${uc.slice(4)}`;
+    const hidden = `<input type="hidden" name="req" value="${esc(signed)}"><input type="hidden" name="csrf" value="${esc(csrf)}">`;
+    return page(200, 'AI にラボの操作を許しますか', `<p><span class="who">「${esc(rec.n)}」</span>が、あなたの GitHub のアカウントで <b>${esc(c.lab ?? 'このラボ')}</b> を操作する許可を求めています。</p>
+<p>コード: <span class="host">${esc(shown)}</span>　AI の画面のコードと同じか確かめてください。</p>
+<p>許すと、その AI はあなたと同じ権限で、ワークフローを始め、実行のログを読み、ファイルを直し、秘密や変数を登録できます（ラボの役割の決まり・確認・監査ログはパネルと同じ。.github/ は変えられません）。</p>
+<p class="muted">あなた自身が AI に「つないで」と頼んで、この画面を開いたときだけ許可してください。ほかの人から送られてきたリンクなら「やめる」を。</p>
+<form method="post" action="/device">${hidden}<div class="row"><button class="go" type="submit">許可して GitHub へ</button></div></form>
+<form method="post" action="/device">${hidden}<input type="hidden" name="deny" value="1"><div class="row"><button type="submit">やめる</button></div></form>`, { formTo: [String(c.web).replace(/[;'\s]/g, '')], cookies: [consentCookie(nonce, TTL / 1000)] });
+  }
+  /** POST /device: the page's own form (cookie, CSRF value, signed and fresh) → said no: kept so the AI hears it; else the
+   *  GitHub sign-in begun, the device's key riding in the state */
+  async function deviceYes(req, url) {
+    if (!store) return stop(400, 'このサービスでは、コードでつなぐ方法は使えません。');
+    const site = req.headers.get('sec-fetch-site');
+    if (site && site !== 'same-origin') return stop(403, 'このページの外から送られました。');
+    if (Number(req.headers.get('content-length') ?? 0) > 16384) return stop(413, '送られたものが大きすぎます。');
+    const p = new URLSearchParams((await req.text().catch(() => '')).slice(0, 16384)), nonce = consentOf(req);
+    const m = /^([A-Za-z0-9_-]{1,2000})\.([A-Za-z0-9_-]{43})$/.exec(p.get('req') ?? '');
+    if (!nonce || !m || !(await macOk('consent', `${nonce}\n${m[1]}`, p.get('csrf') ?? '')) || !(await macOk('device-req', m[1], m[2]))) return stop(403, '許可の画面が古いか、ほかの画面から送られました。');
+    let r; try { r = JSON.parse(dec.decode(unb64url(m[1]))); } catch { return stop(400, '許可の中身が読めません。'); }
+    const age = now() - Number(r.t);
+    if (!(age <= TTL && age >= -60_000) || !/^[A-Za-z0-9_-]{43}$/.test(String(r.dk))) return stop(400, '許可の画面が古くなりました（10 分）。');
+    const rec = await store.get(`d:${r.dk}`);
+    if (!rec || rec.st !== 'wait') return stop(400, 'このコードはもう使えません。AI に、もう一度つなぐように頼んでください。');
+    if (p.get('deny')) {
+      await store.put(`d:${r.dk}`, { ...rec, st: 'no' }, DEVICE_TTL);
+      return page(200, 'やめました', '<p>AI はつながりません。この画面は閉じてかまいません。</p>', { cookies: [consentCookie('', 0)] });
+    }
+    const { state, cookie: kept, k } = await begin('', null, r.dk);
+    const q = new URLSearchParams({ client_id: c.clientId, redirect_uri: `${url.origin}/callback`, state });
+    if (GITHUB.pkce) { q.set('code_challenge', b64url(await subtle().digest('SHA-256', enc.encode(await verifierOf(k))))); q.set('code_challenge_method', 'S256'); }
+    const headers = new Headers({ ...HEADERS, location: `${c.web}${GITHUB.authorize}?${q}` });
+    headers.append('set-cookie', cookie(kept, TTL / 1000));
+    headers.append('set-cookie', consentCookie('', 0));
+    return new Response(null, { status: 302, headers });
+  }
+  /** GitHub back to /callback for the device sign-in: the same browser, in time, GitHub's code traded — the tokens sealed into
+   *  the store for the AI's next ask, and the person told to go back to it */
+  async function deviceCallback(url, req, s) {
+    const clear = cookie('', 0), say = (status, title, body) => page(status, title, body, { cookies: [clear] });
+    const raw = cookieOf(req), k = raw ? await openCookie(raw) : null;
+    if (!k || !(await macOk('bind', k, s.h))) return say(400, 'つなげません', '<p>この画面は、許可の画面を開いたのと同じブラウザで開いてください。</p>');
+    const age = now() - s.t;
+    if (!(age <= TTL && age >= -60_000)) return say(400, 'つなげません', '<p>時間がたちすぎました（10 分）。AI に、もう一度つなぐように頼んでください。</p>');
+    const rec = store ? await store.get(`d:${s.d}`) : null;
+    if (!rec || rec.st !== 'wait') return say(400, 'つなげません', '<p>このコードはもう使えません。AI に、もう一度つなぐように頼んでください。</p>');
+    if (url.searchParams.get('error')) { await store.put(`d:${s.d}`, { ...rec, st: 'no' }, DEVICE_TTL); return say(200, 'やめました', '<p>GitHub で取りやめました。AI はつながりません。</p>'); }
+    const code = url.searchParams.get('code') ?? '';
+    const t = /^[\x21-\x7e]{1,512}$/.test(code) ? await exchange({ code, redirect_uri: `${url.origin}/callback`, ...(GITHUB.pkce ? { code_verifier: await verifierOf(k) } : {}) }) : { ok: false };
+    if (!t.ok) return say(502, 'つなげません', '<p>GitHub からトークンを受け取れませんでした。少しして、AI にもう一度つなぐように頼んでください。</p>');
+    await store.put(`d:${s.d}`, { ...rec, st: 'ok', gh: await box.seal('code', { gh: t.tokens, ch: rec.ch, sc: rec.sc, exp: now() + DEVICE_TTL }) }, DEVICE_TTL);
+    return say(200, '✅ AI がつながりました', `<p><span class="who">「${esc(rec.n)}」</span>が ${esc(c.lab ?? 'このラボ')} を操作できるようになりました（あなたの GitHub のアカウントで。ラボの役割の決まり・確認・監査ログのとおりに）。</p><p>この画面は閉じて、AI の画面に戻ってください。</p><p class="muted">やめさせるには: GitHub の Settings → Applications → Authorized GitHub Apps で、このラボの App を取り消します。</p>`);
+  }
+  const MCP_ROUTES = { '/.well-known/oauth-authorization-server': 'GET', '/.well-known/oauth-protected-resource': 'GET', '/.well-known/oauth-protected-resource/mcp': 'GET', '/register': 'POST', '/authorize': 'GET POST', '/token': 'POST', '/device/code': 'POST', '/device': 'GET POST' };
   async function mcpRoute(req, url, path) {
-    if (req.method === 'OPTIONS') return path === '/authorize' ? reply(405, { error: 'method' }) : reply(204, null, OPEN);
+    if (req.method === 'OPTIONS') return path === '/authorize' || path === '/device' ? reply(405, { error: 'method' }) : reply(204, null, OPEN);
     if (!MCP_ROUTES[path].split(' ').includes(req.method)) return reply(405, { error: 'method' }, { ...OPEN, allow: MCP_ROUTES[path].replace(' ', ', ') });
     if (path === '/.well-known/oauth-authorization-server') return reply(200, asMeta(url.origin), OPEN);
     if (path.startsWith('/.well-known/oauth-protected-resource')) return reply(200, prMeta(url.origin), OPEN);
-    if (c.missing.length) return path === '/authorize' ? stop(503, 'サインインのサービスの設定が足りません（パネルの「準備」）。') : reply(503, { error: 'temporarily_unavailable' }, OPEN);
+    if (c.missing.length) return path === '/authorize' || path === '/device' ? stop(503, 'サインインのサービスの設定が足りません（パネルの「準備」）。') : reply(503, { error: 'temporarily_unavailable' }, OPEN);
     if (path === '/register') return register(req);
     if (path === '/token') return token(req, url);
+    if (path === '/device/code') return deviceCode(req, url);
+    if (path === '/device') return req.method === 'GET' ? deviceAsk(url) : deviceYes(req, url);
     return req.method === 'GET' ? authorizeAsk(url) : authorizeYes(req, url);
   }
 
@@ -415,7 +546,7 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
       return allowed && path !== '/login' && path !== '/callback' ? reply(204, null, { ...cors, 'access-control-allow-methods': 'GET, POST', 'access-control-allow-headers': 'content-type', 'access-control-max-age': '600' }) : reply(403, { error: 'origin' }, { vary: 'Origin' });
     }
     if (req.method !== want) return reply(405, { error: 'method' }, { allow: `${want}, OPTIONS` });
-    if (path === '/health') return reply(c.missing.length ? 503 : 200, { ok: !c.missing.length, clientId: c.clientId || null, origins: c.origins, panels: c.panels.map((p) => p.href), version: VERSION, lab: c.lab, ...(c.missing.length ? { missing: c.missing } : {}) }, cors);
+    if (path === '/health') return reply(c.missing.length ? 503 : 200, { ok: !c.missing.length, clientId: c.clientId || null, origins: c.origins, panels: c.panels.map((p) => p.href), version: VERSION, lab: c.lab, device: Boolean(store), ...(c.missing.length ? { missing: c.missing } : {}) }, cors);
     if (c.missing.length) return reply(500, { error: 'config' }, cors);
     if (path === '/login') return login(url);
     if (path === '/callback') return callback(url, req);

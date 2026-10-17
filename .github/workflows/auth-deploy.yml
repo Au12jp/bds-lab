@@ -68,6 +68,14 @@ jobs:
           echo "::add-mask::$acct"
           { echo "account=$acct"; echo "url=https://$name.$sub.workers.dev"; } >> "$GITHUB_OUTPUT"
           if [ "$PLAN" = true ]; then echo "::notice title=auth-plan::https://$name.$sub.workers.dev"; fi
+      # (strict: the Worker tried first in Cloudflare's own runtime — workerd, on this machine against a fake GitHub, with the
+      # same wrangler — so a version that would break there never replaces the one in place, which keeps answering)
+      - name: Cloudflare の実行環境（workerd）で試す
+        if: inputs.plan != 'true'
+        env:
+          WRANGLER: npx --yes wrangler@4.148.0
+        run: |
+          node tests/api-workerd.mjs || { echo "::error title=auth-deploy::この版のサービスは Cloudflare の実行環境（workerd）で試験に落ちました（tests/api-workerd.mjs）: 置かずに止めました。今のサービスはそのまま動きます。ラボを新しい版にしてから、もう一度"; exit 1; }
       - name: Cloudflare Workers に置く
         if: inputs.plan != 'true'
         working-directory: auth
@@ -92,12 +100,24 @@ jobs:
           origins="${ORIGINS:-https://$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]').github.io/$REPO/}"
           W="npx --yes wrangler@4.148.0"
           # (Cloudflare's refusals said in words the panel shows as they are: workers.dev not chosen, the token, the account)
-          if ! $W deploy --var "PANEL_ORIGINS:$origins" --var "GITHUB_CLIENT_ID:$CLIENT_ID" --var "LAB_SLUG:$OWNER/$REPO" > deploy.log 2>&1; then
-            cat deploy.log
+          up() { $W deploy "$@" --var "PANEL_ORIGINS:$origins" --var "GITHUB_CLIENT_ID:$CLIENT_ID" --var "LAB_SLUG:$OWNER/$REPO" > deploy.log 2>&1; }
+          why() {
             if grep -qiE 'workers\.dev subdomain|register a workers' deploy.log; then fail "Cloudflare の workers.dev の名前がまだありません: dash.cloudflare.com の「Workers & Pages」を一度開いて名前を決めてから、もう一度"; fi
             if grep -qiE 'Authentication error|Invalid API Token|code: (10000|9109|6003)' deploy.log; then fail "Cloudflare がトークンを断りました: テンプレート「Edit Cloudflare Workers」で作り直し、パネルの「準備」で入れ直してください"; fi
             if grep -qiE 'code: (7003|10001)|Could not route|account' deploy.log; then fail "Cloudflare のアカウント ID が違うか、トークンがそのアカウントのものではありません（「Workers & Pages」の右側の Account ID を）"; fi
             fail "Cloudflare に置けませんでした: $(grep -v '^\s*$' deploy.log | tail -1 | cut -c1-300)"
+          }
+          # (Cloudflare's errors said in words the panel shows as they are; an account that cannot have the Durable Object —
+          # the device sign-in's store — gets the service without it: the device sign-in is then off, nothing else changes)
+          if ! up; then
+            cat deploy.log
+            if grep -qiE 'durable|migration|sqlite' deploy.log; then
+              echo "::warning title=auth-deploy::Durable Objects を置けないので、コードでつなぐ方法（デバイスのサインイン）なしで置きます"
+              sed '/^# the device sign-in/,$d' wrangler.toml > wrangler.nodo.toml
+              up -c wrangler.nodo.toml || { cat deploy.log; why; }
+            else
+              why
+            fi
           fi
           cat deploy.log
           # (the App's secrets: through stdin, never on the command line or in the log)

@@ -105,14 +105,31 @@ Docker なしなら `node auth/node.mjs`（同じ env。`HOST` は既定 127.0.0
 
 | 道 | すること |
 |---|---|
-| `POST /mcp` | MCP（Streamable HTTP、JSON で答える。`initialize`・`tools/list`・`tools/call`・`ping`）。トークンがなければ 401 と `WWW-Authenticate: Bearer resource_metadata=…` |
+| `GET /` | AI と人のための説明のページ（道具の一覧・つなぎ方）。`GET /llms.txt` は同じことを AI 向けのテキストで、`GET /openapi.json` は OpenAPI 3.1 |
+| `POST /mcp` | MCP（Streamable HTTP、JSON で答える。`initialize`・`tools/list`・`tools/call`・`ping`）。トークンがなければ 401 と `WWW-Authenticate: Bearer resource_metadata=…`。`MCP-Protocol-Version` が知らない版なら 400 |
 | `GET /api` | 道具の一覧（名前・説明・入力の JSON Schema・ポリシーの操作）。トークン不要 |
-| `POST /api/<道具>` | 1 回の呼び出し（本文は引数の JSON）→ `{ ok, summary, result, text? }`。断りは `{ ok: false, error }` と状態（403 役割・428 確認が要る・409 sha が古い…） |
+| `POST /api/<道具>` | 1 回の呼び出し（本文は引数の JSON）→ `{ ok, summary, result, text? }`。断りは `{ ok: false, error }` と状態（403 役割・428 確認が要る・409 sha が古い…）。読むだけの道具は `GET /api/<道具>?引数=値` でも（書く道具を GET で呼ぶと 405） |
 | `GET /.well-known/oauth-protected-resource` | MCP の資源のメタデータ（`/mcp` 付きも） |
 | `GET /.well-known/oauth-authorization-server` | 認可サーバーのメタデータ（S256・動的登録） |
 | `POST /register` | 動的なクライアント登録（RFC 7591）: 戻る先は https、この機械の http、アプリ独自のスキームだけ。登録は署名した値（保存しない） |
 | `GET /authorize` → `POST /authorize` | このサービス自身の同意の画面（クライアントの名前と戻る先を見せる。cookie に結び付けた CSRF の値）→ GitHub App のサインイン |
-| `POST /token` | `authorization_code`（PKCE S256 必須）・`refresh_token`。トークンは GitHub のトークンを封じた値（AES-GCM、鍵は STATE_SECRET から） |
+| `POST /token` | `authorization_code`（PKCE S256 必須）・`refresh_token`・`urn:ietf:params:oauth:grant-type:device_code`。トークンは GitHub のトークンを封じた値（AES-GCM、鍵は STATE_SECRET から） |
+| `POST /device/code` → `GET /device` → `POST /device` | **デバイスのサインイン**（RFC 8628: コードでつなぐ）: AI がコードを受け取り、人に `/device?code=XXXX-XXXX` のリンクを渡す → 人がこのサービスの画面で AI の名前とコードを確かめて「許可して GitHub へ」→ GitHub の「Authorize」→ AI が `/token` を 5 秒ごとに聞いてトークンを 1 回だけ受け取る |
+
+### コードでつなぐ（どの AI でも: デバイスのサインイン）
+
+MCP のコネクタを足せない AI（ウェブの読み書きだけできる AI・スクリプト・ほかのセッション）も、リンク 1 つと許可 1 回でつながります。
+AI に「`<このサービス>/llms.txt` を読んで、デバイスのサインインでつないで」と頼むだけです（パネルの「準備」→「🤖 AI から操作」に
+コピーできる頼み方があります）。
+
+1. AI: `POST /device/code`（本文なしでよい。`client_name` で名前を）→ `user_code`・`verification_uri_complete`・`device_code`・`client_id`・`interval`（5 秒）。
+2. 人: そのリンクを開き、AI の名前とコード（AI の画面と同じか）を確かめて「許可して GitHub へ」→ GitHub の「Authorize」。「やめる」も GitHub での取りやめも AI に `access_denied` で伝わります。
+3. AI: `POST /token`（`grant_type=urn:ietf:params:oauth:grant-type:device_code`・`device_code`・`client_id`）を `interval` ごとに → 許されるまで `authorization_pending`、許されたら 1 回だけトークン（2 回目からは `expired_token`）。10 分で切れます。
+4. AI: `Authorization: Bearer <access_token>` で `/api/<道具>` か `/mcp`。8 時間で切れ、`refresh_token`（`grant_type=refresh_token`・`client_id`）で新しくなります。
+
+コードと受け渡しの間のトークン（封じたもの）は Durable Object（`worker.mjs` の `Store`: SQLite で、Cloudflare の無料のプランでも置けます）に
+10 分だけ置き、受け取られたら消します。Durable Object を置けないアカウントでは、auth-deploy.yml がそれなしで置き（注釈で言います）、
+コードでつなぐ方法だけが使えなくなります（`/health` の `device: false`）。node.mjs は同じものをメモリーに持ちます（再起動で消えます）。
 
 - **誰として**: つないだ人の GitHub のユーザーのトークンで動きます（MCP の OAuth で受け取って封じたもの、または
   `Authorization: Bearer <GitHub のトークン>` をそのまま）。見える・できるのは GitHub がその人に許すことだけで、さらに
@@ -160,5 +177,9 @@ Docker なしなら `node auth/node.mjs`（同じ env。`HOST` は既定 127.0.0
 `node tests/auth-offline.mjs`（偽の GitHub で: サインインの流れ・state の改ざん・cookie なし・古い state・callback の
 アドレスを見た人が state を cookie にして送るもの（400）・ほかの origin・同じ origin のほかのパス・
 refresh と logout の CORS・logout の Basic と DELETE・秘密が出ないこと・node.mjs を空いている番号で・worker.mjs の形）。
+`node tests/api-offline.mjs`（AI 用の API と MCP の OAuth・デバイスのサインイン・説明のページ）。
+`WRANGLER="npx --yes wrangler@4.148.0" node tests/api-workerd.mjs`（Cloudflare の実行環境 workerd で、置くものそのまま:
+Durable Object・プラットフォームの fetch と WebCrypto と時計・自分の https の /health を中で答えること。auth-deploy.yml は
+置く前にこれを通し、落ちたら置かずに止めます: 今のサービスはそのまま動きます）。
 実際の GitHub でしか分からないこと（PKCE を受けるか、`prompt=select_account`）は [handler.mjs](handler.mjs) の `GITHUB` に
 まとめてあります。

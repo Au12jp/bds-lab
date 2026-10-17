@@ -5,14 +5,15 @@
 //   node auth/node.mjs        (env: GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET PANEL_ORIGINS STATE_SECRET PUBLIC_URL LAB_SLUG [PORT HOST])
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
-import { handler, config, HEADERS } from './handler.mjs';
+import { handler, config, HEADERS, memoryStore } from './handler.mjs';
 import { api } from './api.mjs';
 
 // (the sign-in's bodies are small; a file written through the API comes whole: up to 1 MB, as base64 in JSON)
 const LIMIT = 16 * 1024, API_LIMIT = 2 * 1024 * 1024;
 /** env → a node:http server of the handler (not listening yet) */
 export function server(env = process.env, opts = {}) {
-  const auth = handler(env, opts), lab = api(env, { ...opts, self: auth }), h = async (req) => (await lab(req)) ?? auth(req);
+  // (the device sign-in's codes in this process's memory: one server, ten minutes each)
+  const store = opts.store ?? memoryStore(), auth = handler(env, { ...opts, store }), lab = api(env, { ...opts, self: auth, device: true }), h = async (req) => (await lab(req)) ?? auth(req);
   // (the address people and GitHub see: PUBLIC_URL's origin; else what the request says it reached — fine on this machine)
   let pub = null; try { pub = env.PUBLIC_URL ? new URL(env.PUBLIC_URL).origin : null; } catch { /* not an address: the request's own */ }
   return http.createServer(async (req, res) => {

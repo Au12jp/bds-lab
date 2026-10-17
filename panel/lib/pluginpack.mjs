@@ -3,7 +3,7 @@
 // skill that tells the AI how to work the lab with it. Made for one lab's address, in the browser (the 「準備」 tab's button)
 // or in Node (common/claude-plugin.mjs) alike: pure, no compression (a few small text files), names in UTF-8.
 export const PLUGIN_NAME = 'bds-lab';
-export const PLUGIN_VERSION = '1.0.0';
+export const PLUGIN_VERSION = '1.1.0';
 
 /** the plugin's files for one lab (pure) → { path: text }. mcpUrl: https://…/mcp; lab: owner/repo; panelUrl: the panel */
 export function pluginFiles({ mcpUrl, lab, panelUrl = '' } = {}) {
@@ -15,12 +15,12 @@ export function pluginFiles({ mcpUrl, lab, panelUrl = '' } = {}) {
   return {
     '.claude-plugin/plugin.json': `${JSON.stringify(manifest, null, 2)}\n`,
     '.mcp.json': `${JSON.stringify({ mcpServers: { [PLUGIN_NAME]: { type: 'http', url: u } } }, null, 2)}\n`,
-    'skills/bds-lab/SKILL.md': skill(lab, panel),
+    'skills/bds-lab/SKILL.md': skill(lab, panel, u.slice(0, -'/mcp'.length)),
     'README.md': readme(lab, u, panel),
   };
 }
 
-function skill(lab, panel) {
+function skill(lab, panel, base) {
   return `---
 name: bds-lab
 description: Use whenever the person talks about their bds-lab or ${lab} — Minecraft Bedrock addons made and proven on a real server by GitHub Actions — to see how it is doing, debug a failed run or test, fix or change an addon, make a new one, run its tests or build its .mcaddon, set secrets or variables, schedule runs, or manage members. Works through the bds-lab tools (MCP).
@@ -61,6 +61,17 @@ A unit lives in \`bds/addons/<name>/\`: \`src/main.ts\` (TypeScript on the Scrip
 - Deleting a secret, removing a member, cancelling a run: ask first.
 - Never ask the person to paste a secret into the chat when the panel can take it; if they hand you one to set, use \`secret_set\` and never repeat it.
 
+## When the bds-lab tools are not there
+
+If no bds-lab tool is available (the connector was not added, or it did not connect), the same tools answer over plain HTTPS at ${base} — connect with the device sign-in, one link the person opens:
+
+1. \`POST ${base}/device/code\` (form field \`client_name\`: your name) → \`user_code\`, \`verification_uri_complete\`, \`device_code\`, \`client_id\`, \`interval\`.
+2. Give the person the \`verification_uri_complete\` link and the \`user_code\`: they open it, see the same code, press 「許可して GitHub へ」 and GitHub's 「Authorize」.
+3. Every \`interval\` seconds \`POST ${base}/token\` (form: \`grant_type=urn:ietf:params:oauth:grant-type:device_code\`, \`device_code\`, \`client_id\`): \`authorization_pending\` → wait; \`access_token\` → connected (handed out once); \`access_denied\` / \`expired_token\` → ask the person and start again. The code lasts 10 minutes.
+4. Call \`POST ${base}/api/<tool>\` with \`Authorization: Bearer <access_token>\` and the tool's arguments as a JSON body (read-only tools also \`GET ${base}/api/<tool>?arg=value\`). \`GET ${base}/api\` lists the tools with their input schemas; \`${base}/openapi.json\` and \`${base}/llms.txt\` describe them.
+
+Never show the token. It lasts 8 hours; \`POST ${base}/token\` with \`grant_type=refresh_token\`, \`refresh_token\` and \`client_id\` renews it.
+
 ## Never
 
 - \`.github/\` (the lab's CI and policy — the timetable only through \`schedule_set\`), \`auto/policy.json\`, \`auto/STOP\`, \`.env\` files: a person changes those (the tools refuse).
@@ -81,6 +92,9 @@ Claude が ${lab} を直接操作するためのプラグインです。中身�
 1. Claude でこのプラグインを入れます。
 2. 最初に道具を使うとき、Claude が「連携」を求めます → 開いた画面で「許可して GitHub へ」→ GitHub の「Authorize」。
 3. あとは「ラボの様子は？」「落ちた試験を直して」「新しいアドオンを作って」のように頼むだけです。
+
+コネクタを足せない AI でも、「${url.slice(0, -'/mcp'.length)}/llms.txt を読んで、デバイスのサインインでつないで」と頼めば、AI が出すリンクを開いて
+「許可して GitHub へ」→「Authorize」でつながります。
 
 AI はあなたの GitHub のアカウントで動きます。GitHub の権限・ラボの役割の決まり・確認・監査ログは管理パネルと同じで、
 \`.github/\`（CI と決まり）、\`auto/policy.json\`・\`auto/STOP\`、\`.env\` は変えられません。
