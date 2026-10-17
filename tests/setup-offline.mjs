@@ -42,7 +42,7 @@ async function fakeGitHub(init = {}) {
       let x;
       if (u === '/auth/health') return send(res, st.health === 500 ? 500 : 200, st.health);
       // (the App as GitHub shows it to anyone: one made before administration was asked for)
-      if (u === '/apps/lab-o') return send(res, 200, { slug: 'lab-o', permissions: st.appPerms });
+      if ((x = /^\/apps\/(lab-o(?:-[0-9a-f]{4})?)$/.exec(u))) return send(res, 200, { slug: x[1], permissions: st.appPerms });
       if ((x = /^\/app-manifests\/([\w-]+)\/conversions$/.exec(u)) && m === 'POST') { st.log.push('convert'); return send(res, 201, { id: 4242, slug: 'lab-o', node_id: 'N', client_id: 'Iv1.app', client_secret: CLIENT_SECRET, webhook_secret: null, pem: PEM, html_url: 'https://github.com/apps/lab-o', owner: { login: 'o' }, code: x[1] }); }
       if (u === '/repos/o/lab/actions/secrets/public-key') return send(res, 200, { key_id: 'KID', key: SEAL.toB64(pk) });
       if ((x = /^\/repos\/o\/lab\/actions\/secrets\/(\w+)$/.exec(u)) && m === 'PUT') { if (x[1] === st.failSecret) return send(res, 403, { message: 'Resource not accessible by integration' }); st.secrets.set(x[1], body); return send(res, 201, null); }
@@ -611,6 +611,42 @@ await t('全自動で準備する: the next step from the checks (pure), the lab
     const b4 = new E('div');
     await UI.setupTab(b4, { ...ctx, config: { authUrl: AUTH_URL, appSlug: 'lab-o', appClientId: 'Iv1.x' } });
     ok(/✅ 準備はすべて終わりました（全部の行が ✅）/.test(b4.textContent) && !store.getItem('bdslab.setup.auto'), b4.textContent.slice(0, 900));
+  } finally { f.close(); delete globalThis.document.body.append; }
+});
+
+await t('全自動で準備する from where a real lab stood: the App made before the service (no APP_CALLBACK_URL), the service up — the App made again with the Callback URL under a new name, the service put in place again for the new App, installed once, done (fake DOM, fake GitHub)', async () => {
+  const { E } = fakeDom();
+  const UI = await imp('panel/ui/setup.mjs');
+  const f = await fakeGitHub({ pages: { build_type: 'workflow' }, vars: { APP_ID: '5', APP_SLUG: 'lab-o', APP_CLIENT_ID: 'Iv1.old', LAB_AUTH_URL: AUTH_URL } });
+  try {
+    f.st.appPerms = { ...f.st.appPerms, administration: 'write' };
+    const store = AC.memoryStorage(), submitted = [], went = [];
+    globalThis.document.body.append = (x) => { x.requestSubmit = () => { x.fire('submit'); submitted.push(x); }; };
+    const fetchImpl = async (url, o) => (String(url) === `${AUTH_URL}/health` ? { ok: true, json: async () => ({ ok: true, clientId: f.st.svcClient ?? 'Iv1.old', panels: ['https://o.github.io/lab/'] }) } : f.fetchImpl(url, o));
+    const ctx = { api: f.api, lab: LAB({ secrets: ['APP_PRIVATE_KEY', 'APP_CLIENT_SECRET', 'AUTH_STATE_SECRET', 'CLOUDFLARE_API_TOKEN'], repo: { default_branch: 'main', owner: { login: 'o', type: 'User', id: 11 }, id: 22 } }), hosts: [], me: { login: 'o' }, config: { authUrl: AUTH_URL, appSlug: 'lab-o', appClientId: 'Iv1.old' }, panelUrl: 'https://o.github.io/lab/', signedInWithApp: false, fetchImpl, storage: store, wait: QUICK,
+      location: { search: '', hash: '#setup', pathname: '/lab/', assign: (u) => went.push(u) }, history: { replaceState() {} } };
+    // the row's own button: a new name (the old one is taken on GitHub) and the Callback URL
+    const b0 = new E('div');
+    await UI.setupTab(b0, ctx);
+    const rowForm = b0.all((e) => e.attrs['data-check'] === 'callback')[0].all((e) => e.tagName === 'FORM')[0];
+    const rm = JSON.parse(rowForm.all((e) => e.tagName === 'INPUT' && e.attrs.type === 'hidden')[0].value);
+    ok(rm.name !== 'lab-o' && /^lab-o-[0-9a-f]{4}$/.test(rm.name) && rm.callback_urls[0] === `${AUTH_URL}/callback`, JSON.stringify([rm.name, rm.callback_urls]));
+    // 全自動: straight to making it again
+    await b0.all((e) => e.tagName === 'BUTTON' && e.textContent === '全自動で準備する')[0].click();
+    eq(submitted.length, 1, `the App's form sent: ${b0.textContent.slice(0, 500)}`);
+    const m = JSON.parse(submitted[0].all((e) => e.tagName === 'INPUT' && e.attrs.type === 'hidden')[0].value);
+    ok(/^lab-o-[0-9a-f]{4}$/.test(m.name) && m.callback_urls[0] === `${AUTH_URL}/callback`, JSON.stringify([m.name, m.callback_urls]));
+    // back with the new App: the service put in place again for it (its client id), then installed, then done
+    f.st.vars.set('APP_ID', '6'); f.st.vars.set('APP_SLUG', m.name); f.st.vars.set('APP_CLIENT_ID', 'Iv1.new'); f.st.vars.set('APP_CALLBACK_URL', `${AUTH_URL}/callback`);
+    f.st.seen.length = 0;
+    const realDispatch = f.api.dispatch; f.api.dispatch = async (...a) => { const r = await realDispatch(...a); if (a[1] === 'auth-deploy.yml') f.st.svcClient = 'Iv1.new'; return r; };
+    await UI.setupTab(new E('div'), { ...ctx, config: { ...ctx.config, appSlug: m.name, appClientId: 'Iv1.new' } });
+    ok(f.st.seen.some((x) => /auth-deploy\.yml\/dispatches/.test(x.u)), 'the service put in place again for the new App');
+    eq(went.length, 1, `then to install it: ${went}`);
+    ok(went[0].includes(`/apps/${m.name}/installations/new`), went[0]);
+    const b4 = new E('div');
+    await UI.setupTab(b4, { ...ctx, config: { ...ctx.config, appSlug: m.name, appClientId: 'Iv1.new' } });
+    ok(/✅ 準備はすべて終わりました（全部の行が ✅）/.test(b4.textContent), b4.textContent.slice(0, 800));
   } finally { f.close(); delete globalThis.document.body.append; }
 });
 

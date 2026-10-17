@@ -181,8 +181,9 @@ function cfWait(ctx, { link: url, opened, say }) {
     if (!ok) { done = false; return false; }
     ctx.lab.secrets = [...new Set([...(ctx.lab.secrets ?? []), 'CLOUDFLARE_API_TOKEN'])];
     try { cfWin?.close?.(); } catch { /* its own tab */ } cfWin = null;
-    ctx.record?.('setup.deploy', { auto: true });
+    // (the stage moved on before anything that may draw the tab again — the audit log — so a redraw does not start a second run)
     autoSet(ctx, { ...(autoGet(ctx) ?? {}), stage: 'go' });
+    ctx.record?.('setup.deploy', { auto: true });
     const l = live?.ctx?.lab?.slug === ctx.lab.slug ? live : { ctx, draw: async () => undefined };
     await autoRun(l.ctx, l.draw);
     return true;
@@ -228,7 +229,7 @@ function fixOf(ctx, c) {
   if (f.link) return h('div', { class: 'row' }, link(f.link, f.label), h('button', { onclick: () => act(() => globalThis.navigator.clipboard.writeText(f.link), 'リンクをコピーしました') }, 'コピー'));
   const no = notAllowed(ctx, f);
   if (no) return c.ok === true ? null : h('div', { class: 'muted' }, `（${no}）`);
-  if (f.manifest) return appForm(ctx);
+  if (f.manifest) return appForm(ctx, { remake: Boolean(f.remake) });
   // (a secret's field: not offered to the browser's password manager)
   const fields = (f.inputs ?? []).map((i) => [i, h('input', { type: i.secret ? 'password' : 'text', autocomplete: 'off', placeholder: i.placeholder ?? null, 'aria-label': i.label })]);
   const step = h('div', { class: 'muted' });
