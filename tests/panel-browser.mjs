@@ -692,6 +692,16 @@ try {
   await page.selectOption('#acct', 'author1');
   await waitText(/管理者/);
   check(JSON.stringify(await page.locator('nav.tabs button').allInnerTexts()) === JSON.stringify(['概要', '進み具合', '実行', 'アドオン', '配布', '成果物', '予約', '統計', 'Discord', '秘密', '端末', '貸し借り', 'メンバー', '準備', '連携', '監査', '設定']), 'switched: the author\'s tabs', JSON.stringify(await page.locator('nav.tabs button').allInnerTexts()));
+  // every tab, as the author sees it: a missing part is nothing — never the words 「null」「undefined」「[object …]」 on the page
+  // (the browser's own replaceChildren / append write them; ui/dom.mjs keeps them out)
+  for (const name of await page.locator('nav.tabs button').allInnerTexts()) {
+    await tab(name);
+    await page.waitForTimeout(700);
+    const words = await page.locator('#main').innerText();
+    const bad = /(^|[^A-Za-z_])(null|undefined|NaN)([^A-Za-z_]|$)|\[object [A-Za-z]+\]/.exec(words);
+    check(!bad, `「${name}」: no null, undefined or [object …] on the page`, bad ? words.slice(Math.max(0, bad.index - 80), bad.index + 80) : '');
+  }
+  await tab('貸し借り');
   check(await waitText(/期限（\d{4}-\d\d-\d\d）を過ぎました/) && /借り手/.test(await text()), 'the host the author borrows (their own list), now stopped by its lender', await text());
   await tab('設定');
   check((await page.locator('#tabbody input[type=password]').inputValue()) === VKEY && /lender1/.test(await text()) && /author1\/bds-lab・ホスト 1/.test(await text()), 'the author\'s vault key kept for the author; both accounts listed with their own settings', await text());

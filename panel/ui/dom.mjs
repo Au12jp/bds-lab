@@ -1,5 +1,17 @@
 // dom: the panel's few DOM helpers, shared by panel.js and the screens in panel/ui/ (text is always text: never parsed as
 // HTML; no inline style attribute — the page's CSP allows none — styles go through the CSSOM).
+// (a missing part is nothing, everywhere: the browser's own replaceChildren / append / prepend would write null, undefined
+// or false as the words 「null」「undefined」「false」 — the panel passes `cond ? part : null` to them as it does to h(); an
+// array is its items, as in h())
+export const keep = (kids) => kids.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false);
+for (const P of [globalThis.Element?.prototype, globalThis.DocumentFragment?.prototype, globalThis.Document?.prototype]) {
+  if (!P || P.__bdslabKeep) continue;
+  for (const m of ['replaceChildren', 'append', 'prepend', 'before', 'after', 'replaceWith']) {
+    const own = P[m];
+    if (typeof own === 'function') Object.defineProperty(P, m, { configurable: true, writable: true, value: function (...kids) { return own.apply(this, keep(kids)); } });
+  }
+  Object.defineProperty(P, '__bdslabKeep', { value: true });
+}
 export const h = (tag, attrs = {}, ...kids) => {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs ?? {})) {
