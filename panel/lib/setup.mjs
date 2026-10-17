@@ -175,16 +175,19 @@ export const manifestProblems = (m) => ghCheck('appManifest', m, { strictOnly: t
 // stops the run with why and its link. A ❔ for 「App がラボに入っている」 is let pass right after coming back from installing
 // it (a token's sign-in cannot see installations).
 export const SKIPPABLE = Object.freeze(['deploy', 'auth', 'callback']);
-export function autoNext(cs, { installed = false, planned = null } = {}) {
+export function autoNext(cs, { installed = false, planned = null, cfSkip = false } = {}) {
   const all = cs ?? [], by = Object.fromEntries(all.map((c) => [c.key, c]));
   const runnable = (c) => c && c.ok !== true && typeof c.fix?.run === 'function' && !(c.fix.inputs ?? []).length;
   const stop = (c) => ({ kind: 'stop', key: c.key, why: c.need || `${c.label} を確かめられません`, ...(c.fix?.link ? { link: c.fix.link, linkLabel: c.fix.label } : {}) });
   if (by.pages && by.pages.ok !== true) return runnable(by.pages) ? { kind: 'run', key: 'pages' } : stop(by.pages);
   if (by.app && by.app.ok === null) return stop(by.app);
+  // (「GitHub でサインイン」 not set up and no Cloudflare token yet: Cloudflare's own token page opened by the run itself, before
+  // the App — its address then goes into the App's Callback URL; skipped only when the person says so)
+  const needCf = (c) => c && c.ok === false && (c.fix?.inputs ?? []).some((i) => i.name === 'token');
+  if (needCf(by.deploy) && !cfSkip) return { kind: 'cloudflare', link: by.deploy.fix.help?.link ?? null };
   // (Cloudflare's token in and no address yet: the address first — the App is then made with its Callback URL already right)
   if (by.app && by.app.ok === false && by.app.fix?.manifest && by.app.cfReady && !planned) return { kind: 'plan' };
   if (by.app && by.app.ok === false) return by.app.fix?.manifest ? { kind: 'app' } : stop(by.app);
-  if (by.installed && by.installed.ok !== true && !installed) return { kind: 'install' };
   // (the sign-in service: done by the panel itself when it can be — Cloudflare's keys already in, or the page told again —
   // never by asking for anything)
   if (by.deploy && by.deploy.ok !== true && runnable(by.deploy)) return { kind: 'run', key: 'deploy' };
@@ -192,6 +195,8 @@ export function autoNext(cs, { installed = false, planned = null } = {}) {
   if (by.auth && by.auth.ok !== true && runnable(by.auth)) return { kind: 'run', key: 'auth' };
   // (the service up but the App's Callback URL not it: the App made again with it — GitHub's two buttons, nothing to paste)
   if (by.callback && by.callback.ok !== true && by.callback.fix?.manifest) return { kind: 'app', remake: true };
+  // (installed last: the App that stays — one made again for its Callback URL is the one put on the lab, once)
+  if (by.installed && by.installed.ok !== true && !installed) return { kind: 'install' };
   const skipped = all.filter((c) => SKIPPABLE.includes(c.key) && c.ok !== true).map((c) => c.label);
   const left = all.filter((c) => c.ok !== true && !c.key.startsWith('host:') && !SKIPPABLE.includes(c.key) && !(c.key === 'installed' && installed && c.ok === null));
   if (left.length) return stop(left[0]);

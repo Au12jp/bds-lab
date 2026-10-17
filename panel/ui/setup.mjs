@@ -25,7 +25,7 @@ export function setupTab(body, ctx) {
     back, admin ? autoCard(ctx, () => draw()) : null, list));
   // (a check that could not be made at all: the words of why and the way on, with 「もう一度」 — never the waiting line for good)
   const draw = async () => {
-    try { const cs = await S.checks(ctx); list.replaceChildren(...cs.map((c) => row(ctx, c))); return cs; } catch (e) {
+    try { const cs = await S.checks(ctx); list.replaceChildren(...cs.map((c) => row(ctx, c))); lastChecks = cs; return cs; } catch (e) {
       list.replaceChildren(h('li', {}, failView(e, draw), h('div', { class: 'muted' }, 'ラボを読めませんでした: つながりを確かめて「もう一度」。続くときは、権限の足りたトークンで入り直します。'), link(S.tokenUrl(ctx.lab.slug.split('/')[0]), '権限が全部入ったトークンを作る（GitHub へ）')));
       return undefined;
     }
@@ -34,7 +34,7 @@ export function setupTab(body, ctx) {
   live = { ctx, draw };
   return comeBack(ctx, back).then(draw).then(async (cs) => { if (cs && autoOn(ctx)) await autoRun(ctx, draw); return cs; });
 }
-let live = null;
+let live = null, lastChecks = null;
 
 // ---- 「全自動で準備する」: everything the panel may do itself, in order, the person pressing only GitHub's two buttons (make the
 // App, install it); the run goes on by itself when the tab comes back from GitHub (its stage kept in this tab) ----
@@ -49,13 +49,17 @@ function autoCard(ctx, draw) {
   // (nothing to type: the button alone; what only typing could set up is skipped and said)
   const go = h('button', { class: 'primary', onclick: async () => {
     go.disabled = true;
+    // (Cloudflare's token page opened now, while this press still counts as the person's — a browser lets a page open a tab
+    // only then; the run below then waits for the token instead of opening it itself)
+    const d = lastChecks?.find((c) => c.key === 'deploy');
+    if (d && d.ok === false && (d.fix?.inputs ?? []).some((i) => i.name === 'token') && d.fix.help?.link && !notAllowed(ctx, d.fix)) cfOpen(ctx, d.fix.help.link);
     try {
       autoSet(ctx, { stage: 'go', installed: Boolean(autoGet(ctx)?.installed) || instGet(ctx) });
       await autoRun(ctx, draw);
     } finally { go.disabled = false; }
   } }, '全自動で準備する');
   return h('div', { class: 'card' }, h('h3', {}, '⚡ 全自動で準備する'),
-    h('p', { class: 'muted' }, '入力は何も要りません。押すと、パネルができることを上から順に全部やります。あなたが押すのは GitHub の画面の「Create GitHub App」と「Install」だけで、戻ってくると続きを自動でやります。「GitHub でサインイン」も使うなら、下の「「GitHub でサインイン」」の行のリンクで Cloudflare のトークンを作って 1 回貼るだけ（あとは全部自動。先に貼っておけば、このボタン 1 回でそこまでやります）。'),
+    h('p', { class: 'muted' }, '押すと、パネルができることを上から順に全部やります。Cloudflare の画面も自動で開きます（「Continue to summary」→「Create Token」→「Copy」だけ。このタブに戻ると、コピーしたトークンを自動で読んで続けます）。あとは GitHub の画面の「Create GitHub App」と「Install」を押すだけで、戻ってくると続きを自動でやります。'),
     h('div', { class: 'row' }, go), say);
 }
 /** one step after another until GitHub needs the person (it leaves the page), it is truly done, or it stops and says why;
@@ -92,7 +96,7 @@ async function autoSteps(ctx0, draw0) {
     }
     const cs = await draw();
     if (!cs) return halt('準備の様子を読めませんでした: 上の「もう一度」から');
-    const next = S.autoNext(cs, { installed: Boolean(a.installed), planned: a.planned ?? null });
+    const next = S.autoNext(cs, { installed: Boolean(a.installed), planned: a.planned ?? null, cfSkip: Boolean(a.cfSkip) });
     if (next.kind === 'run') {
       const c = cs.find((x) => x.key === next.key), no = notAllowed(ctx, c.fix);
       if (no) return halt(`${c.label} — ${no}`);
@@ -106,6 +110,14 @@ async function autoSteps(ctx0, draw0) {
         continue;
       }
       continue;
+    }
+    if (next.kind === 'cloudflare') {
+      const d = cs.find((x) => x.key === 'deploy'), no = notAllowed(ctx, d?.fix);
+      if (no) { autoSet(ctx, { ...a, cfSkip: true }); continue; }
+      autoSet(ctx, { ...a, stage: 'cf-wait' });
+      const opened = cfWin || cfOpen(ctx, next.link);
+      cfWait(ctx, { link: next.link, opened, say });
+      return;
     }
     if (next.kind === 'plan') {
       const no = notAllowed(ctx, { needs: ['dispatch'] });
@@ -144,9 +156,55 @@ async function autoSteps(ctx0, draw0) {
     }
     // (done: every row ✅ — said only now)
     autoSet(ctx, null);
-    return say(next.skipped?.length ? `✅ 準備はすべて終わりました（入力が要るので飛ばしたもの: ${next.skipped.join('・')}。今と同じトークンで入れます）` : '✅ 準備はすべて終わりました（全部の行が ✅）');
+    return say(next.skipped?.length ? `✅ 準備はすべて終わりました（飛ばしたもの: ${next.skipped.join('・')}。サインインは今と同じトークンで）` : '✅ 準備はすべて終わりました（全部の行が ✅）');
   }
   halt('同じことを 12 回繰り返したので止めました: 下の ⚠️ の行を見てください');
+}
+// ---- Cloudflare: its token page opened by the run, the token read back from the clipboard when this tab comes back (the
+// browser asks once), or pasted into the one field — either way the run goes on by itself; nothing is pressed here ----
+let cfWin = null, cfStop = null;
+const TOKEN_SHAPE = /^[A-Za-z0-9_-]{30,200}$/;
+function cfOpen(ctx, url) {
+  if (!url) return null;
+  try { const w = (ctx.open ?? globalThis.open)?.(url, '_blank'); if (w) { try { w.opener = null; } catch { /* another origin */ } cfWin = w; } return w ?? null; } catch { return null; }
+}
+function cfWait(ctx, { link: url, opened, say }) {
+  cfStop?.();
+  const field = h('input', { type: 'password', autocomplete: 'off', 'aria-label': 'Cloudflare のトークン', placeholder: 'ここに貼る（貼るだけで続きます）' });
+  let done = false;
+  const take = async (raw) => {
+    const token = String(raw ?? '').trim();
+    if (done || !TOKEN_SHAPE.test(token) || S.cfProblem({ token })) return false;
+    done = true; cfStop?.(); field.value = '';
+    say('Cloudflare のトークンを封じて登録しています…');
+    const ok = await act(async () => { await ctx.api.putSecret(ctx.lab.slug, 'CLOUDFLARE_API_TOKEN', token); return true; });
+    if (!ok) { done = false; return false; }
+    ctx.lab.secrets = [...new Set([...(ctx.lab.secrets ?? []), 'CLOUDFLARE_API_TOKEN'])];
+    try { cfWin?.close?.(); } catch { /* its own tab */ } cfWin = null;
+    ctx.record?.('setup.deploy', { auto: true });
+    autoSet(ctx, { ...(autoGet(ctx) ?? {}), stage: 'go' });
+    const l = live?.ctx?.lab?.slug === ctx.lab.slug ? live : { ctx, draw: async () => undefined };
+    await autoRun(l.ctx, l.draw);
+    return true;
+  };
+  // (back in this tab: the clipboard read — a token copied on Cloudflare's page goes on without a paste)
+  const clip = ctx.clipboard ?? globalThis.navigator?.clipboard;
+  const tryClip = async () => { if (done) return; try { const t = await clip?.readText?.(); if (await take(t)) return; } catch { /* not allowed: the field */ } field.focus?.(); };
+  const win = ctx.win ?? globalThis;
+  const onFocus = () => tryClip();
+  const onVis = () => (globalThis.document?.visibilityState === 'hidden' ? undefined : tryClip());
+  win.addEventListener?.('focus', onFocus); globalThis.document?.addEventListener?.('visibilitychange', onVis);
+  cfStop = () => { win.removeEventListener?.('focus', onFocus); globalThis.document?.removeEventListener?.('visibilitychange', onVis); cfStop = null; };
+  field.addEventListener('input', () => take(field.value));
+  field.addEventListener('paste', (e) => { const t = e?.clipboardData?.getData?.('text'); return t ? take(t) : undefined; });
+  const skip = h('button', { onclick: async () => { cfStop?.(); autoSet(ctx, { ...(autoGet(ctx) ?? {}), stage: 'go', cfSkip: true }); const l = live?.ctx?.lab?.slug === ctx.lab.slug ? live : { ctx, draw: async () => undefined }; await autoRun(l.ctx, l.draw); } }, '「GitHub でサインイン」は今は使わない（飛ばす）');
+  // (the browser blocked the tab — a run that went on from GitHub's way back has no press of the person's: one press opens it)
+  const openBtn = opened ? null : h('button', { class: 'primary', onclick: () => { cfOpen(ctx, url); } }, 'Cloudflare を開く');
+  say(opened ? '👉 開いた Cloudflare のタブで「Continue to summary」→「Create Token」→「Copy」を押して、このタブに戻ってください（コピーしたトークンを自動で読んで続けます）。読めないときは、下の欄に貼るだけ。'
+    : '👉 「Cloudflare を開く」→「Continue to summary」→「Create Token」→「Copy」→ このタブに戻るだけ（コピーしたトークンを自動で読んで続けます）。読めないときは、下の欄に貼るだけ。',
+  [h('div', { class: 'row' }, openBtn, skip), field]);
+  if (opened === null && !openBtn) field.focus?.();
+  return { take, tryClip };
 }
 const roleName = (r) => (typeof r === 'string' ? r : r?.name ?? (r?.names?.length ? `${r.names.join(' か ')}（チームが読めません）` : 'なし'));
 /** why this person may not use a fix (words), null when they may: the lab's administrator on GitHub, and the policy's role

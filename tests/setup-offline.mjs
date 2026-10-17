@@ -531,16 +531,20 @@ await t('the 「準備」 tab and the policy: a fix only for a GitHub administra
   } finally { f.close(); }
 });
 
-await t('全自動で準備する: the next step from the checks (pure), the lab chosen on the App\'s install page, nothing to type; on the tab: Pages turned on by itself, then the App\'s form sent to GitHub, the stage kept for the way back; back from GitHub: the install page with the lab chosen, then done with the sign-in service skipped (fake DOM, fake GitHub)', async () => {
+await t('全自動で準備する: the next step from the checks (pure), the lab chosen on the App\'s install page, nothing to type; on the tab: Pages turned on by itself, Cloudflare\'s token page opened by the run and the copied token read back by itself, the address settled, the App made with its Callback URL, the service put in place and the page loaded again, the App installed once, done with every row ✅ (fake DOM, fake GitHub)', async () => {
   const R = (key, ok, fix = null, extra = {}) => ({ key, label: key, ok, need: ok === true ? '' : `${key} needed`, fix, ...extra });
   const run = { run: async () => 'done' };
   eq(S.autoNext([R('pages', false, run), R('app', false, { manifest: true })]), { kind: 'run', key: 'pages' }, 'Pages first');
   eq(S.autoNext([R('pages', true), R('app', false, { manifest: true })]), { kind: 'app' }, 'then the App');
   eq(S.autoNext([R('pages', true), R('app', null)]).kind, 'stop', 'variables not readable: stop, with why');
   eq(S.autoNext([R('pages', true), R('app', true), R('installed', null)]), { kind: 'install' }, 'then install it');
-  eq(S.autoNext([R('pages', true), R('app', true), R('installed', null), R('deploy', true, run), R('auth', false)], { installed: true }), { kind: 'run', key: 'deploy' }, 'back from installing: the service, Cloudflare\'s keys in');
-  // input-free: what only typing could set up (the sign-in service) is skipped and named; everything else must be ✅
-  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('deploy', false, { ...run, inputs: [{ name: 'token' }] }), R('auth', false, { ...run, inputs: [{ name: 'url' }] })]), { kind: 'done', skipped: ['deploy', 'auth'] }, 'no Cloudflare keys: skipped, nothing asked');
+  eq(S.autoNext([R('pages', true), R('app', true), R('installed', null), R('deploy', true, run), R('auth', false)]), { kind: 'run', key: 'deploy' }, 'the service before installing (the App that stays is installed once)');
+  // Cloudflare's token page opened by the run itself — before the App, its address going into the App's Callback URL
+  const cfRow = R('deploy', false, { ...run, inputs: [{ name: 'token' }], help: { link: 'https://dash.cloudflare.com/x' } });
+  eq(S.autoNext([R('pages', true), R('app', false, { manifest: true }), cfRow]), { kind: 'cloudflare', link: 'https://dash.cloudflare.com/x' }, 'no token: Cloudflare first, before the App');
+  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), cfRow]), { kind: 'cloudflare', link: 'https://dash.cloudflare.com/x' }, 'the App there already: Cloudflare too');
+  // skipped only when the person says so: then named
+  eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), cfRow, R('auth', false, { ...run, inputs: [{ name: 'url' }] })], { cfSkip: true }), { kind: 'done', skipped: ['deploy', 'auth'] }, 'skipped on the person\'s word: named');
   eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('auth', false, run)]), { kind: 'run', key: 'auth' }, 'what the panel can do alone about the service, it does');
   eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('auth', true), R('callback', null)]), { kind: 'done', skipped: ['callback'] }, 'the Callback URL: skipped, not asked');
   eq(S.autoNext([R('pages', true), R('app', true), R('installed', true), R('app-perms', false, { link: 'https://x/permissions', label: 'p' })]), { kind: 'stop', key: 'app-perms', why: 'app-perms needed', link: 'https://x/permissions', linkLabel: 'p' }, 'the App\'s permissions short: stop with the link');
@@ -559,30 +563,90 @@ await t('全自動で準備する: the next step from the checks (pure), the lab
   try {
     const store = AC.memoryStorage(), went = [], submitted = [];
     globalThis.document.body.append = (x) => { x.requestSubmit = () => { x.fire('submit'); submitted.push(x.attrs.action); }; };
-    const ctx = { api: f.api, lab: LAB({ repo: { default_branch: 'main', owner: { login: 'o', type: 'User', id: 11 }, id: 22 } }), hosts: [], me: { login: 'o' }, config: {}, panelUrl: 'https://o.github.io/lab/', signedInWithApp: false, fetchImpl: f.fetchImpl, storage: store,
+    // (the browser around the page: a tab opened, the clipboard, this window's focus; the page's config and the service)
+    const opened = [], clip = { text: '' }, winOn = {}, live = { config: null };
+    const win = { addEventListener: (t, fn) => { (winOn[t] ??= []).push(fn); }, removeEventListener: (t, fn) => { winOn[t] = (winOn[t] ?? []).filter((x) => x !== fn); } };
+    const focus = () => Promise.all((winOn.focus ?? []).map((fn) => fn()));
+    const fetchImpl = async (url, o) => {
+      if (/config\.json/.test(url)) return { ok: true, json: async () => ({ authUrl: live.config }) };
+      if (String(url) === `${AUTH_URL}/health`) return { ok: true, json: async () => ({ ok: true, clientId: f.st.vars.get('APP_CLIENT_ID'), panels: ['https://o.github.io/lab/'] }) };
+      return f.fetchImpl(url, o);
+    };
+    const reloaded = [];
+    const ctx = { api: f.api, lab: LAB({ repo: { default_branch: 'main', owner: { login: 'o', type: 'User', id: 11 }, id: 22 } }), hosts: [], me: { login: 'o' }, config: {}, panelUrl: 'https://o.github.io/lab/', signedInWithApp: false, fetchImpl, storage: store,
+      wait: { ...QUICK, timeoutMs: 1000, sleep: async () => { live.config = AUTH_URL; } }, reloadPage: () => reloaded.push(1),
+      open: (u) => { opened.push(u); return { close() {} }; }, clipboard: { readText: async () => clip.text }, win,
       location: { search: '', hash: '#setup', pathname: '/lab/', assign: (u) => went.push(u) }, history: { replaceState() {} } };
     const body = new E('div');
     await UI.setupTab(body, ctx);
     const go = body.all((e) => e.tagName === 'BUTTON' && e.textContent === '全自動で準備する')[0];
     ok(go, 'the button for the lab\'s administrator');
-    ok(!body.all((e) => e.tagName === 'DIV' && e.className === 'card').filter((x) => /全自動で準備する/.test(x.textContent) && !/準備と診断/.test(x.textContent)).some((x) => x.all((e) => e.tagName === 'INPUT').length), 'nothing to type on the card');
+    ok(!body.all((e) => e.tagName === 'DIV' && e.className === 'card').filter((x) => /全自動で準備する/.test(x.textContent) && !/準備と診断/.test(x.textContent)).some((x) => x.all((e) => e.tagName === 'INPUT').length), 'nothing to type on the card before it starts');
     await go.click();
     ok(f.st.pages?.build_type === 'workflow', `Pages turned on by itself: ${JSON.stringify(f.st.pages)}`);
-    ok(submitted.length === 1 && /^https:\/\/github\.com\/settings\/apps\/new\?state=/.test(submitted[0]) && JSON.parse(store.getItem('bdslab.setup.auto')).stage === 'app' && store.getItem('bdslab.setup.manifest'), `then the App's form to GitHub, its state and the stage kept: ${submitted}`);
+    eq(opened, [S.cfTokenUrl()], 'Cloudflare\'s token page opened by the run, in its own tab, on the press');
+    ok(/開いた Cloudflare のタブで/.test(body.textContent) && !submitted.length, `waiting for the token, the App not made yet: ${body.textContent.slice(0, 400)}`);
+    // back in this tab with something else copied: nothing taken; then the token copied: taken by itself, no button
+    clip.text = 'hello'; await focus();
+    ok(!f.st.secrets.has('CLOUDFLARE_API_TOKEN'), 'not a token: nothing sent');
+    clip.text = CF_TOKEN; await focus();
+    eq(f.open('CLOUDFLARE_API_TOKEN'), CF_TOKEN, 'the copied token read and sealed, nothing pressed');
+    // then on by itself: the address settled (plan), the App made with its Callback URL
+    ok(f.st.seen.some((x) => /auth-deploy\.yml\/dispatches/.test(x.u) && JSON.parse(x.body).inputs?.plan === 'true'), 'the address asked of Cloudflare');
+    ok(submitted.length === 1 && /^https:\/\/github\.com\/settings\/apps\/new\?state=/.test(submitted[0]) && JSON.parse(store.getItem('bdslab.setup.auto')).stage === 'app', `then the App's form: ${submitted}`);
+    const kept = JSON.parse(store.getItem('bdslab.setup.manifest'));
+    eq(kept.callback, `${AUTH_URL}/callback`, 'the App made with its Callback URL');
     ok(/Create GitHub App/.test(body.textContent), 'what to press on GitHub, said');
-    // back from GitHub with the App made (its slug in the variables): the install page, the lab chosen
-    f.st.vars.set('APP_ID', '5'); f.st.vars.set('APP_SLUG', 'lab-o'); f.st.vars.set('APP_CLIENT_ID', 'Iv1.x');
+    // back from GitHub with the App made: the service put in place, the page waited for and loaded again
+    f.st.vars.set('APP_ID', '5'); f.st.vars.set('APP_SLUG', 'lab-o'); f.st.vars.set('APP_CLIENT_ID', 'Iv1.x'); f.st.vars.set('APP_CALLBACK_URL', kept.callback);
     f.st.appPerms = { ...f.st.appPerms, administration: 'write' };
-    ctx.lab.secrets = ['APP_PRIVATE_KEY', 'APP_CLIENT_SECRET', 'AUTH_STATE_SECRET'];
+    ctx.lab.secrets = ['APP_PRIVATE_KEY', 'APP_CLIENT_SECRET', 'AUTH_STATE_SECRET', 'CLOUDFLARE_API_TOKEN'];
     await UI.setupTab(new E('div'), ctx);
-    eq(went, ['https://github.com/apps/lab-o/installations/new/permissions?suggested_target_id=11&repository_ids[]=22'], 'to the install page with the lab chosen');
-    eq(JSON.parse(store.getItem('bdslab.setup.auto')).installed, true, 'that it went to install, kept');
-    // back from installing: done, the sign-in service skipped (no keys typed), nothing started for it
+    eq([f.st.vars.get('LAB_AUTH_URL'), reloaded.length, went.length], [AUTH_URL, 1, 0], 'put in place, the page loaded again, not installed yet');
+    // loaded again: the Callback URL right from the start — straight to installing the App, once
     const b3 = new E('div');
-    await UI.setupTab(b3, ctx);
-    ok(/✅ 準備はすべて終わりました（入力が要るので飛ばしたもの: .*サインインのサービス/.test(b3.textContent) && !store.getItem('bdslab.setup.auto'), b3.textContent.slice(0, 900));
-    ok(!f.st.seen.some((x) => /auth-deploy\.yml\/dispatches/.test(x.u)), 'nothing started for the service');
+    await UI.setupTab(b3, { ...ctx, config: { authUrl: AUTH_URL, appSlug: 'lab-o', appClientId: 'Iv1.x' } });
+    eq(went, ['https://github.com/apps/lab-o/installations/new/permissions?suggested_target_id=11&repository_ids[]=22'], 'to the install page with the lab chosen');
+    // back from installing: every row ✅ — done, nothing skipped
+    const b4 = new E('div');
+    await UI.setupTab(b4, { ...ctx, config: { authUrl: AUTH_URL, appSlug: 'lab-o', appClientId: 'Iv1.x' } });
+    ok(/✅ 準備はすべて終わりました（全部の行が ✅）/.test(b4.textContent) && !store.getItem('bdslab.setup.auto'), b4.textContent.slice(0, 900));
   } finally { f.close(); delete globalThis.document.body.append; }
+});
+
+await t('全自動で準備する and Cloudflare: a tab the browser blocked opened by one press; a token pasted goes on by itself; 「飛ばす」 the person\'s own word, then named as skipped (fake DOM, fake GitHub)', async () => {
+  const { E } = fakeDom();
+  const UI = await imp('panel/ui/setup.mjs');
+  for (const how of ['paste', 'skip']) {
+    const f = await fakeGitHub({ pages: { build_type: 'workflow' }, vars: { APP_ID: '5', APP_SLUG: 'lab-o', APP_CLIENT_ID: 'Iv1.x' } });
+    try {
+      f.st.appPerms = { ...f.st.appPerms, administration: 'write' };
+      const store = AC.memoryStorage(), opened = [], submitted = [];
+      globalThis.document.body.append = (x) => { x.requestSubmit = () => { submitted.push(x); }; };
+      // (a run going on from GitHub's way back: no press, the browser blocks the tab)
+      store.setItem('bdslab.setup.auto', JSON.stringify({ stage: 'go', installed: true, lab: 'o/lab', at: Date.now() }));
+      const ctx = { api: f.api, lab: LAB({ secrets: ['APP_PRIVATE_KEY', 'APP_CLIENT_SECRET', 'AUTH_STATE_SECRET'] }), hosts: [], me: { login: 'o' }, config: {}, panelUrl: 'https://o.github.io/lab/', signedInWithApp: false, fetchImpl: f.fetchImpl, storage: store, wait: QUICK,
+        open: (u) => { opened.push(u); return opened.length > 1 ? { close() {} } : null; }, clipboard: { readText: async () => { throw new Error('denied'); } }, win: {},
+        location: { search: '', hash: '#setup', pathname: '/lab/', assign() {} }, history: { replaceState() {} } };
+      const b = new E('div');
+      await UI.setupTab(b, ctx);
+      const openBtn = b.all((e) => e.tagName === 'BUTTON' && e.textContent === 'Cloudflare を開く')[0];
+      ok(openBtn && opened.length === 1, `blocked: one press opens it: ${b.textContent.slice(0, 300)}`);
+      await openBtn.click();
+      eq(opened.length, 2, 'opened on the press');
+      if (how === 'paste') {
+        const field = b.all((e) => e.tagName === 'INPUT' && e.attrs['aria-label'] === 'Cloudflare のトークン')[0];
+        field.value = CF_TOKEN; await field.fire('input');
+        eq(f.open('CLOUDFLARE_API_TOKEN'), CF_TOKEN, 'pasted: sealed, nothing else pressed');
+        ok(field.value === '' && !b.textContent.includes(CF_TOKEN), 'the field emptied, the token not shown');
+        ok(f.st.seen.some((x) => /auth-deploy\.yml\/dispatches/.test(x.u)), 'and on by itself: the service put in place');
+      } else {
+        await b.all((e) => e.tagName === 'BUTTON' && /今は使わない（飛ばす）/.test(e.textContent))[0].click();
+        ok(!f.st.secrets.has('CLOUDFLARE_API_TOKEN') && !f.st.seen.some((x) => /auth-deploy\.yml\/dispatches/.test(x.u)), 'skipped: nothing sent for it');
+        ok(/飛ばしたもの: 「GitHub でサインイン」/.test(b.textContent), `named as skipped: ${b.textContent.slice(0, 600)}`);
+      }
+    } finally { f.close(); delete globalThis.document.body.append; }
+  }
 });
 
 await t('全自動で準備する: a failed auth-deploy.yml says Cloudflare\'s own reason; waiting for the page and the service times out in words; auth-deploy.yml refuses to put a half-made service and checks /health (fake DOM, fake GitHub)', async () => {
