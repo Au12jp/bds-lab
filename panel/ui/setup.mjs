@@ -200,8 +200,8 @@ function cfWait(ctx, { link: url, opened, say }) {
   const skip = h('button', { onclick: async () => { cfStop?.(); autoSet(ctx, { ...(autoGet(ctx) ?? {}), stage: 'go', cfSkip: true }); const l = live?.ctx?.lab?.slug === ctx.lab.slug ? live : { ctx, draw: async () => undefined }; await autoRun(l.ctx, l.draw); } }, '「GitHub でサインイン」は今は使わない（飛ばす）');
   // (the browser blocked the tab — a run that went on from GitHub's way back has no press of the person's: one press opens it)
   const openBtn = opened ? null : h('button', { class: 'primary', onclick: () => { cfOpen(ctx, url); } }, 'Cloudflare を開く');
-  say(opened ? '👉 開いた Cloudflare のタブで「Continue to summary」→「Create Token」→「Copy」を押して、このタブに戻ってください（コピーしたトークンを自動で読んで続けます）。読めないときは、下の欄に貼るだけ。'
-    : '👉 「Cloudflare を開く」→「Continue to summary」→「Create Token」→「Copy」→ このタブに戻るだけ（コピーしたトークンを自動で読んで続けます）。読めないときは、下の欄に貼るだけ。',
+  say(opened ? '👉 開いた Cloudflare のタブで（ログイン画面が出たら「Sign in with GitHub」→ 初回だけ GitHub の「Authorize cloudflare」）「Continue to summary」→「Create Token」→「Copy」を押して、このタブに戻ってください（コピーしたトークンを自動で読んで続けます）。読めないときは、下の欄に貼るだけ。'
+    : '👉 「Cloudflare を開く」→（ログイン画面なら「Sign in with GitHub」）→「Continue to summary」→「Create Token」→「Copy」→ このタブに戻るだけ（コピーしたトークンを自動で読んで続けます）。読めないときは、下の欄に貼るだけ。',
   [h('div', { class: 'row' }, openBtn, skip), field]);
   if (opened === null && !openBtn) field.focus?.();
   return { take, tryClip };
