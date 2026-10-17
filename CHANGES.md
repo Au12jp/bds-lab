@@ -4,6 +4,25 @@
 **app ラボを「ほぼクライアント」に: 本物のアプリをコントローラーで人のように遊べる（歩く・見回す・跳ぶ・壊す・置く・持ち物・チャット…）。
 スマホの Discord から CI の端末を画面とボタンで動かせ、リポジトリの秘密も Discord のフォームで登録できる（node も PC も要らない）。**
 
+### 🤖 AI から操作: Claude（ほかの AI も）がラボを直接操作する API（MCP・HTTP）
+- **AI 用の API**（`auth/api.mjs`）: サインインのサービス（Cloudflare の Worker）に MCP（`POST /mcp`）と HTTP（`GET /api`・`POST /api/<道具>`）。
+  パネルと同じ部品（`panel/lib`）で 34 の道具: `lab_status`（様子・役割・準備・落ちているもの）、`setup_checks`・`setup_fix`、`runs_list`・`run_detail`
+  （どこで・なぜ・次の 1 手）・`run_log`（grep・tail。保存先にはトークンなしで）・`run_rerun`・`run_cancel`、`workflows_list`・`workflow_get`・`workflow_run`
+  （新しい実行の id まで）、`units_list`（木 1 回と GraphQL 1 回）・`unit_run`・`unit_new`・`ai_make`、`files_list`・`file_read`・`file_write`・`file_delete`
+  （読んだ sha の上にだけ）、`secrets_list`・`secret_set`・`secret_delete`、`variables_list`・`variable_set`・`variable_delete`、`releases_list`・`artifacts_list`、
+  `members_list`・`member_set`・`member_remove`、`audit_log`、`issue_from_run`、`schedule_get`・`schedule_set`。
+- **パネルと同じ守り**: つないだ人の GitHub のトークンで動き、GitHub の権限・役割の決まり・確認（`confirm: true`: 決まりの confirm、AI の料金、メンバーを外す）・
+  監査ログ（`via: mcp` / `api`）。`.github/`（予約だけは検査して `schedule_set`）・`auto/policy.json`・`auto/STOP`・`.env` は変えない。
+- **AI のサインイン**（`auth/handler.mjs`）: MCP の OAuth 2.1 — 資源と認可サーバーのメタデータ、動的なクライアント登録（署名した値）、このサービス自身の
+  同意の画面（クライアントの名前と戻る先。cookie に結び付けた CSRF）、GitHub App のサインイン、PKCE 必須、GitHub のトークンを封じた code・アクセストークン・
+  更新トークン（AES-GCM、種類ごとに分けて）。何も保存しない。`/health` にラボ（`lab`）。
+- **Claude 用プラグイン**: 「準備」の「🤖 AI から操作」に MCP の URL・Claude／Claude Code／ほかの AI のつなぎ方・「API を確かめる」・「Claude 用プラグイン
+  （.plugin）」（MCP とスキル入り: `panel/lib/pluginpack.mjs`）。コマンドでは `node common/claude-plugin.mjs --url <サービス> --lab <owner/repo>`。
+- auth-deploy.yml が `LAB_SLUG` を入れ、Worker がパネルの部品を一緒に束ねる。自分のサーバーの Docker はラボの一番上から（auth/ の 3 つと panel/lib だけ）。
+- 秘密の封じを、使える所では WebCrypto の X25519 で（約 6 ms → 約 1 ms: Cloudflare の無料の CPU 時間に収まる。パネルも速く）。
+- 試験: `tests/api-offline.mjs`（偽の GitHub で、発見 → 登録 → 同意 → GitHub → code → トークン → 更新、34 の道具、役割の拒否・確認・監査・守るファイル・
+  秘密を見せない・プラグインの zip）。`panel check` に加えた。
+
 ### 管理パネル: 画面に「null」が出ていたのを直す
 - 「貸し借り」「概要」「統計」で、無い部分が「null」という文字で出ていた（ブラウザの replaceChildren・append は null を文字にする）。
   `ui/dom.mjs` で、描き直しのときも h() と同じく null・undefined・false を何も描かないように。

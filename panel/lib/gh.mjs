@@ -2,7 +2,7 @@
 // they chose; or the user token of the lab's GitHub App, from signing in: what the App and the person may both do). Nothing
 // else is ever called: the panel's page allows no other address (its CSP's connect-src). GitHub decides
 // what this person may see and do — the panel adds no power of its own.
-import { secretPayload } from './seal.mjs';
+import { secretPayload, secretPayloadFast } from './seal.mjs';
 import { check, kindOf } from './ghrules.mjs';
 
 export class GhError extends Error { constructor(status, message, path) { super(message); this.status = status; this.path = path; } }
@@ -92,7 +92,8 @@ export function gh({ token, base = 'https://api.github.com', fetchImpl = (...a) 
     async secretNames(r) { try { return ((await call('GET', `/repos/${r}/actions/secrets?per_page=100`)).secrets ?? []).map((s) => s.name); } catch (e) { if (e.status === 403 || e.status === 404) return null; throw e; } },
     secrets: async (r) => (await call('GET', `/repos/${r}/actions/secrets?per_page=100`)).secrets ?? [],
     /** a secret set: sealed here with the repository's public key, so only GitHub's Actions can open it */
-    async putSecret(r, name, value, opts) { const k = await call('GET', `/repos/${r}/actions/secrets/public-key`); return call('PUT', `/repos/${r}/actions/secrets/${encodeURIComponent(name)}`, secretPayload(value, k, opts)); },
+    // (the platform's own X25519 when it has one: lib/seal.mjs sealBoxFast; an ephemeral key handed in — tests — the pure one)
+    async putSecret(r, name, value, opts) { const k = await call('GET', `/repos/${r}/actions/secrets/public-key`); return call('PUT', `/repos/${r}/actions/secrets/${encodeURIComponent(name)}`, opts?.ephemeral ? secretPayload(value, k, opts) : await secretPayloadFast(value, k)); },
     deleteSecret: (r, name) => call('DELETE', `/repos/${r}/actions/secrets/${encodeURIComponent(name)}`),
     /** a run's artifacts, or the repository's newest (expired ones too: GitHub keeps their names) */
     artifacts: async (r, { run, per = 30 } = {}) => (await call('GET', `/repos/${r}/actions/${run ? `runs/${run}/` : ''}artifacts?per_page=${per}`)).artifacts ?? [],

@@ -8,6 +8,7 @@
 import { h, toast, act, link, failView } from './dom.mjs';
 import * as S from '../lib/setup.mjs';
 import * as P from '../lib/policy.mjs';
+import { pluginZip, PLUGIN_NAME } from '../lib/pluginpack.mjs';
 
 const STATE_KEY = 'bdslab.setup.manifest';
 const ICON = (ok) => (ok === null ? '❔ ' : ok ? '✅ ' : '⚠️ ');
@@ -22,7 +23,7 @@ export function setupTab(body, ctx) {
   body.append(h('div', { class: 'card' }, h('h2', {}, `準備と診断（${ctx.lab.slug}）`),
     h('p', { class: 'muted' }, admin ? 'サインインと許可の準備を、上から順に確かめます。⚠️ の行のボタンで、このパネルから直せます（秘密はこのブラウザで封じてから GitHub へ。値は残しません）。'
       : '見るだけです: 直すのはラボの管理者です（GitHub が管理者にだけ許します）。貸し手に渡すリンクは誰でも使えます。'),
-    back, admin ? autoCard(ctx, () => draw()) : null, list));
+    back, admin ? autoCard(ctx, () => draw()) : null, list), ctx.config?.authUrl ? aiCard(ctx) : null);
   // (a check that could not be made at all: the words of why and the way on, with 「もう一度」 — never the waiting line for good)
   const draw = async () => {
     try { const cs = await S.checks(ctx); list.replaceChildren(...cs.map((c) => row(ctx, c))); lastChecks = cs; return cs; } catch (e) {
@@ -206,6 +207,36 @@ function cfWait(ctx, { link: url, opened, say }) {
   [h('div', { class: 'row' }, openBtn, skip), field]);
   if (opened === null && !openBtn) field.focus?.();
   return { take, tryClip };
+}
+// ---- 🤖 AI から操作: the lab's API for AI (auth/api.mjs) on the sign-in service — its MCP address, how Claude (and any other
+// AI) connects, a check that it answers, and the lab's Claude plugin (lib/pluginpack.mjs) to hand to Claude ----
+function aiCard(ctx) {
+  const base = ctx.config.authUrl, mcp = `${base}/mcp`, say = h('div', { class: 'muted', role: 'status' });
+  const copy = (text, what) => h('button', { onclick: () => act(() => globalThis.navigator.clipboard.writeText(text), `${what}をコピーしました`) }, 'コピー');
+  const code = `claude mcp add --transport http ${PLUGIN_NAME} ${mcp}`;
+  const check = h('button', { onclick: async () => {
+    say.replaceChildren('確かめています…');
+    try {
+      const r = await (ctx.fetchImpl ?? ((...a) => globalThis.fetch(...a)))(`${base}/api`, { cache: 'no-store', credentials: 'omit' });
+      const j = r.ok ? await r.json() : null;
+      say.replaceChildren(j?.tools?.length ? `✅ API が答えました: 道具 ${j.tools.length} 個（${j.lab}）。Claude からつなげます` : `⚠️ API がまだありません（HTTP ${r.status}）: サインインのサービスを置き直すと入ります（上の行の「auth-deploy.yml でもう一度置く」か「全自動で準備する」）`);
+    } catch (e) { say.replaceChildren(`⚠️ つながりません（${e?.message ?? e}）`); }
+  } }, 'API を確かめる');
+  const dl = h('button', { onclick: () => act(async () => {
+    const lab = ctx.lab.slug, bytes = pluginZip({ mcpUrl: mcp, lab, panelUrl: ctx.panelUrl });
+    if (typeof globalThis.URL?.createObjectURL !== 'function') throw new Error('このブラウザではファイルを作れません');
+    const href = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' })), a = h('a', { href, download: `${PLUGIN_NAME}.plugin` });
+    globalThis.document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  }, `${PLUGIN_NAME}.plugin を作りました: Claude のチャットに添付して「入れて」と頼むか、Claude の設定のプラグインから入れます`) }, 'Claude 用プラグイン（.plugin）');
+  return h('div', { class: 'card', id: 'ai' }, h('h2', {}, '🤖 AI から操作（Claude ほか）'),
+    h('p', { class: 'muted' }, 'AI がこのラボを直接操作できます: 様子・実行・ログ・ファイル・試験と仕上げ・秘密・変数・メンバー・予約。AI はつないだ人の GitHub のアカウントで動き、GitHub の権限・ラボの役割の決まり・確認・監査ログはこのパネルと同じです。.github/（CI と決まり）、auto/policy.json・auto/STOP、.env は AI からは変えられません。'),
+    h('label', {}, 'MCP の URL'), h('div', { class: 'row' }, h('code', {}, mcp), copy(mcp, 'MCP の URL')),
+    h('ol', {},
+      h('li', {}, 'Claude（アプリ・Web）: 下の「Claude 用プラグイン」をチャットに添付して入れる。または「設定」→「コネクタ」→「カスタムコネクタを追加」に上の URL。最初に使うとき「許可して GitHub へ」→ GitHub の「Authorize」。'),
+      h('li', {}, 'Claude Code: ', h('code', {}, code), ' ', copy(code, 'コマンド')),
+      h('li', {}, 'ほかの AI・スクリプト: ', h('code', {}, `POST ${base}/api/<道具>`), '（Authorization: Bearer <GitHub のトークン>。一覧は ', h('code', {}, `GET ${base}/api`), '）')),
+    h('div', { class: 'row' }, dl, check), say);
 }
 const roleName = (r) => (typeof r === 'string' ? r : r?.name ?? (r?.names?.length ? `${r.names.join(' か ')}（チームが読めません）` : 'なし'));
 /** why this person may not use a fix (words), null when they may: the lab's administrator on GitHub, and the policy's role

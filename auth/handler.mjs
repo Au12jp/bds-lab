@@ -11,7 +11,19 @@
 //   GET /callback?code&state             → 302 to <panel>#bdslab-auth=<base64url(JSON tokens)> (or #bdslab-auth-error=<word>)
 //   POST /refresh {refresh_token}        → the renewed tokens (from the panel's origins only)
 //   POST /logout {access_token}          → 204 (the token revoked on GitHub; from the panel's origins only)
-export const VERSION = '1';
+// and the sign-in of AI clients to the lab's API (api.mjs: MCP at /mcp, plain HTTP at /api) — an OAuth 2.1 authorization
+// server as MCP asks for one, stateless like the rest: a client registered dynamically is a signed value (its redirect
+// addresses in it), the code and the tokens are sealed values (AES-GCM, a key made from STATE_SECRET) that hold the
+// person's GitHub tokens, and the person signs in through the same GitHub App sign-in — after saying yes, on this service's
+// own page, to that client by name and the address it returns to (one GitHub client id serving every client: MCP's rule
+// against the confused deputy). The person's power is still GitHub's alone: the API acts with their user token.
+//   GET /.well-known/oauth-protected-resource[/mcp], GET /.well-known/oauth-authorization-server   → the metadata
+//   POST /register {redirect_uris, client_name, token_endpoint_auth_method}  → 201 { client_id, … } (RFC 7591)
+//   GET /authorize?response_type=code&client_id&redirect_uri&state&code_challenge(S256)  → the consent page
+//   POST /authorize (the page's form: its signed request and a CSRF value bound to a cookie) → 302 to GitHub
+//   GET /callback (the state says MCP)    → 302 to <redirect_uri>?code=<sealed>&state&iss
+//   POST /token grant_type=authorization_code (PKCE) | refresh_token  → { access_token, refresh_token, expires_in }
+export const VERSION = '2';
 /** what only the real GitHub can confirm (kept in this one place; the tests use a fake GitHub) */
 export const GITHUB = {
   // (GitHub's OAuth web flow takes PKCE: code_challenge S256 at /authorize, code_verifier at /access_token — 要実測)
@@ -52,7 +64,60 @@ export function config(env = {}) {
   const origins = [...new Set(panels.map((p) => p.origin))];
   const c = { clientId: String(env.GITHUB_CLIENT_ID ?? '').trim(), secret: String(env.GITHUB_CLIENT_SECRET ?? '').trim(), stateSecret: String(env.STATE_SECRET ?? ''), origins, panels, web: base(env.GITHUB_WEB, 'https://github.com'), api: base(env.GITHUB_API, 'https://api.github.com') };
   c.missing = [!c.clientId && 'GITHUB_CLIENT_ID', !c.secret && 'GITHUB_CLIENT_SECRET', c.stateSecret.length < 32 && 'STATE_SECRET', !origins.length && 'PANEL_ORIGINS'].filter(Boolean);
+  // (the lab the API acts on — auth-deploy.yml sets it; without it the sign-in still works, the API says it has no lab)
+  const lab = String(env.LAB_SLUG ?? '').trim();
+  c.lab = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/.test(lab) ? lab : null;
   return c;
+}
+
+const SEALED = { code: 'bdsl_cd.', access: 'bdsl_at.', refresh: 'bdsl_rt.' };
+/** sealed values for MCP's sign-in (pure but for crypto.subtle): seal(kind, object) → 'bdsl_<kind>.<base64url(iv ‖ AES-GCM)>'
+ *  with a key made from STATE_SECRET by HKDF; open(kind, text) → the object, or null — a value sealed for one kind (a code)
+ *  never opens as another (an access token): the kind is the cipher's associated data and inside it too */
+export function tokenBox(stateSecret) {
+  const subtle = () => globalThis.crypto.subtle;
+  let keyP = null;
+  const key = () => (keyP ??= (async () => {
+    const base = await subtle().importKey('raw', enc.encode(String(stateSecret ?? '')), 'HKDF', false, ['deriveKey']);
+    return subtle().deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: enc.encode('bds-lab'), info: enc.encode('bds-lab mcp sealed v1') }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  })());
+  return {
+    async seal(kind, obj) {
+      if (!SEALED[kind]) throw new Error('kind');
+      const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+      const ct = new Uint8Array(await subtle().encrypt({ name: 'AES-GCM', iv, additionalData: enc.encode(kind) }, await key(), enc.encode(JSON.stringify({ ...obj, kind }))));
+      const all = new Uint8Array(12 + ct.length); all.set(iv, 0); all.set(ct, 12);
+      return `${SEALED[kind]}${b64url(all)}`;
+    },
+    async open(kind, text) {
+      const t = String(text ?? '');
+      if (!SEALED[kind] || !t.startsWith(SEALED[kind]) || t.length > 8192 || String(stateSecret ?? '').length < 32) return null;
+      try {
+        const all = unb64url(t.slice(SEALED[kind].length));
+        if (all.length < 29) return null;
+        const pt = await subtle().decrypt({ name: 'AES-GCM', iv: all.subarray(0, 12), additionalData: enc.encode(kind) }, await key(), all.subarray(12));
+        const j = JSON.parse(dec.decode(pt));
+        return j && typeof j === 'object' && j.kind === kind ? j : null;
+      } catch { return null; }
+    },
+  };
+}
+/** a redirect address an AI client may register (pure): https; http on this machine only (a CLI's loopback); or a native
+ *  app's own scheme — never one a browser runs, reads or hands to another program */
+export function redirectOk(s) {
+  if (typeof s !== 'string' || !s || s.length > 500) return false;
+  let u; try { u = new URL(s); } catch { return false; }
+  if (u.hash || u.username || u.password) return false;
+  if (u.protocol === 'https:') return Boolean(u.hostname);
+  if (u.protocol === 'http:') return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(u.hostname);
+  return /^[a-z][a-z0-9+.-]{1,40}:$/.test(u.protocol) && !/^(javascript|data|file|blob|about|vbscript|ws|wss|ftp|mailto|tel|sms|chrome|chrome-extension|intent|filesystem|view-source|jar|content|res|resource|ms-[a-z0-9-]+):$/.test(u.protocol);
+}
+const esc = (x) => String(x ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+/** an address with these added to its query (pure): its own query kept, empty values left out */
+export function withQuery(addr, params) {
+  const u = new URL(addr);
+  for (const [k, v] of Object.entries(params ?? {})) if (v !== undefined && v !== null && v !== '') u.searchParams.append(k, String(v));
+  return u.href;
 }
 /** GitHub's token answer → the tokens the panel is handed, or null (pure): only these five fields, each checked */
 export function tokensOf(j) {
@@ -88,15 +153,20 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
   const handTo = (back, part) => { const i = back.indexOf('#'), frag = i < 0 ? '' : back.slice(i + 1); return `${i < 0 ? back : back.slice(0, i)}#${frag ? `${frag}&` : ''}${part}`; };
   /** a sign-in begun → { state, cookie, k }: k (16 random bytes) goes in the cookie alone, signed (k.sig); the state GitHub's
    *  address carries has where it returns (r), k's keyed hash (h: k cannot be had from it) and when (t), signed */
-  async function begin(r) {
+  async function begin(r, m = null) {
     const k = b64url(globalThis.crypto.getRandomValues(new Uint8Array(16)));
-    const payload = b64url(enc.encode(JSON.stringify({ r, h: b64url(await mac('bind', k)), t: now() })));
+    // (m: an AI client's request — where it returns, its state and PKCE challenge, its id's hash — for MCP's sign-in)
+    const payload = b64url(enc.encode(JSON.stringify({ r, h: b64url(await mac('bind', k)), t: now(), ...(m ? { m } : {}) })));
     return { state: `${payload}.${b64url(await mac('state', payload))}`, cookie: `${k}.${b64url(await mac('cookie', k))}`, k };
   }
   async function openState(state) {
-    const m = /^([A-Za-z0-9_-]{1,3000})\.([A-Za-z0-9_-]{43})$/.exec(String(state ?? ''));
+    const m = /^([A-Za-z0-9_-]{1,6000})\.([A-Za-z0-9_-]{43})$/.exec(String(state ?? ''));
     if (!m || !(await macOk('state', m[1], m[2]))) return null;
-    try { const s = JSON.parse(dec.decode(unb64url(m[1]))); return typeof s?.r === 'string' && /^[A-Za-z0-9_-]{43}$/.test(String(s.h)) && Number.isFinite(s.t) ? s : null; } catch { return null; }
+    try {
+      const s = JSON.parse(dec.decode(unb64url(m[1])));
+      const mcpOk = s?.m === undefined || (s.m && typeof s.m === 'object' && redirectOk(s.m.ru) && typeof s.m.cc === 'string' && typeof s.m.ch === 'string');
+      return typeof s?.r === 'string' && /^[A-Za-z0-9_-]{43}$/.test(String(s.h)) && Number.isFinite(s.t) && mcpOk ? s : null;
+    } catch { return null; }
   }
   /** the cookie's value → its k, or null when this service did not sign it */
   async function openCookie(v) {
@@ -113,10 +183,10 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
     const tokens = r.ok && !j?.error ? tokensOf(j) : null;
     return tokens ? { ok: true, tokens } : { ok: false, error: 'exchange' };
   }
-  const readJson = async (req) => {
-    if (Number(req.headers.get('content-length') ?? 0) > 4096) return null;
+  const readJson = async (req, max = 4096) => {
+    if (Number(req.headers.get('content-length') ?? 0) > max) return null;
     const t = await req.text().catch(() => '');
-    try { const j = t.length <= 4096 ? JSON.parse(t) : null; return j && typeof j === 'object' && !Array.isArray(j) ? j : null; } catch { return null; }
+    try { const j = t.length <= max ? JSON.parse(t) : null; return j && typeof j === 'object' && !Array.isArray(j) ? j : null; } catch { return null; }
   };
 
   async function login(url) {
@@ -134,6 +204,7 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
     const clear = { 'set-cookie': cookie('', 0) }, state = url.searchParams.get('state') ?? '', s = await openState(state);
     // (a state this service did not sign: no address to trust — nothing is followed)
     if (!s) return reply(400, { error: 'state' }, clear);
+    if (s.m) return mcpCallback(url, req, s);
     const back = returnOf(s.r);
     if (!back) return reply(400, { error: 'return' }, clear);
     const go = (part) => reply(302, null, { ...clear, location: handTo(back, part) });
@@ -174,9 +245,168 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
     return r.ok || r.status === 404 || r.status === 422 ? reply(204, null, cors) : reply(502, { error: 'github' }, cors);
   }
 
+  // ---- MCP's sign-in: AI clients to the lab's API (api.mjs) ----
+  const box = tokenBox(c.stateSecret);
+  const OPEN = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type, mcp-protocol-version', 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-max-age': '600' };
+  const sha = async (text) => b64url(await subtle().digest('SHA-256', enc.encode(String(text))));
+  const CONSENT = '__Host-bdslab_consent';
+  const consentCookie = (v, age) => `${CONSENT}=${v}; Max-Age=${age}; Path=/; Secure; HttpOnly; SameSite=Strict`;
+  const consentOf = (req) => { for (const part of String(req.headers.get('cookie') ?? '').split(';')) { const i = part.indexOf('='); if (i > 0 && part.slice(0, i).trim() === CONSENT) return part.slice(i + 1).trim(); } return null; };
+  const asMeta = (o) => ({ issuer: o, authorization_endpoint: `${o}/authorize`, token_endpoint: `${o}/token`, registration_endpoint: `${o}/register`, response_types_supported: ['code'], grant_types_supported: ['authorization_code', 'refresh_token'], code_challenge_methods_supported: ['S256'], token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'], scopes_supported: ['lab'], service_documentation: c.panels[0]?.href ?? o });
+  const prMeta = (o) => ({ resource: `${o}/mcp`, authorization_servers: [o], scopes_supported: ['lab'], bearer_methods_supported: ['header'], resource_name: `bds-lab${c.lab ? `（${c.lab}）` : ''}`, resource_documentation: c.panels[0]?.href ?? o });
+  /** a page of this service's own (the consent; or why not): text escaped, a style of its own nonce, forms only where they go */
+  function page(status, title, body, { formTo = [], cookies = [] } = {}) {
+    const nonce = b64url(globalThis.crypto.getRandomValues(new Uint8Array(12)));
+    const headers = new Headers({ ...HEADERS, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': `default-src 'none'; style-src 'nonce-${nonce}'; form-action 'self' ${formTo.join(' ')}; frame-ancestors 'none'; base-uri 'none'` });
+    for (const k of cookies) headers.append('set-cookie', k);
+    const css = 'body{font:16px/1.6 system-ui,sans-serif;margin:0;background:#f6f7f9;color:#111}main{max-width:34rem;margin:2rem auto;padding:1.5rem;background:#fff;border-radius:12px;box-shadow:0 1px 4px #0002}h1{font-size:1.3rem;margin-top:0}.who{font-weight:700}.host{font-family:ui-monospace,monospace;background:#eef;padding:.1rem .3rem;border-radius:4px;word-break:break-all}.row{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.25rem}button,a.btn{font:inherit;padding:.6rem 1.1rem;border-radius:8px;border:1px solid #888;background:#fff;color:#111;text-decoration:none;cursor:pointer}button.go{background:#2f6fde;border-color:#2f6fde;color:#fff}.muted{color:#555;font-size:.92rem}@media (prefers-color-scheme:dark){body{background:#111;color:#eee}main{background:#1c1c1f}.host{background:#2a2a40}button,a.btn{background:#222;color:#eee}.muted{color:#aaa}}';
+    return new Response(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>${esc(title)}</title><style nonce="${nonce}">${css}</style></head><body><main><h1>${esc(title)}</h1>${body}</main></body></html>`, { status, headers });
+  }
+  const stop = (status, why) => page(status, 'つなげません', `<p>${esc(why)}</p><p class="muted">AI のアプリで、もう一度つなぎ直してください。</p>`);
+  /** a client as it registered (its signed value) → { id, uris, name, method }, or null */
+  async function openClient(id) {
+    const m = /^bdsc1\.([A-Za-z0-9_-]{1,6000})\.([A-Za-z0-9_-]{43})$/.exec(String(id ?? ''));
+    if (!m || !(await macOk('client', m[1], m[2]))) return null;
+    try { const j = JSON.parse(dec.decode(unb64url(m[1]))); return Array.isArray(j?.u) && j.u.length && j.u.every(redirectOk) ? { id: String(id), uris: j.u, name: String(j.n ?? ''), method: String(j.a ?? 'none') } : null; } catch { return null; }
+  }
+  async function register(req) {
+    const j = await readJson(req, 8192), bad = (d) => reply(400, { error: 'invalid_client_metadata', error_description: d }, OPEN);
+    if (!j) return bad('a JSON object');
+    const uris = j.redirect_uris;
+    if (!Array.isArray(uris) || !uris.length || uris.length > 10 || !uris.every(redirectOk)) return reply(400, { error: 'invalid_redirect_uri', error_description: 'redirect_uris: 1-10 of https, http on localhost, or a native app scheme' }, OPEN);
+    const method = j.token_endpoint_auth_method ?? 'none';
+    if (!['none', 'client_secret_post', 'client_secret_basic'].includes(method)) return bad('token_endpoint_auth_method: none, client_secret_post or client_secret_basic');
+    if (j.grant_types !== undefined && !(Array.isArray(j.grant_types) && j.grant_types.every((g) => g === 'authorization_code' || g === 'refresh_token'))) return bad('grant_types: authorization_code, refresh_token');
+    if (j.response_types !== undefined && !(Array.isArray(j.response_types) && j.response_types.every((r) => r === 'code'))) return bad('response_types: code');
+    const name = String(j.client_name ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80) || 'AI のアプリ', at = Math.floor(now() / 1000);
+    const payload = b64url(enc.encode(JSON.stringify({ u: uris, n: name, a: method, t: at })));
+    const id = `bdsc1.${payload}.${b64url(await mac('client', payload))}`;
+    const out = { client_id: id, client_id_issued_at: at, client_name: name, redirect_uris: uris, token_endpoint_auth_method: method, grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'] };
+    if (method !== 'none') Object.assign(out, { client_secret: b64url(await mac('client-secret', id)), client_secret_expires_at: 0 });
+    return reply(201, out, OPEN);
+  }
+  /** GET /authorize: the request checked, then this service's own page asks the person — the client by name, where it
+   *  returns, what it may do — before anything goes to GitHub */
+  async function authorizeAsk(url) {
+    const q = url.searchParams, client = await openClient(q.get('client_id'));
+    if (!client) return stop(400, 'この AI のアプリの登録（client_id）が正しくありません。');
+    const ru = q.get('redirect_uri') ?? (client.uris.length === 1 ? client.uris[0] : null);
+    if (!ru || !client.uris.includes(ru)) return stop(400, '戻る先（redirect_uri）が、この AI のアプリの登録にありません。');
+    const st = q.get('state') ?? '';
+    const back = (params) => reply(302, null, { location: withQuery(ru, { ...params, ...(st.length <= 1000 ? { state: st } : {}) }) });
+    if (st.length > 1000) return back({ error: 'invalid_request', error_description: 'state is too long' });
+    if (q.get('response_type') !== 'code') return back({ error: 'unsupported_response_type' });
+    const cc = q.get('code_challenge') ?? '';
+    if (!/^[A-Za-z0-9_-]{43,128}$/.test(cc) || q.get('code_challenge_method') !== 'S256') return back({ error: 'invalid_request', error_description: 'PKCE with S256 is required' });
+    const res = q.get('resource');
+    if (res && res.replace(/\/+$/, '') !== `${url.origin}/mcp` && res.replace(/\/+$/, '') !== url.origin) return back({ error: 'invalid_target' });
+    const sc = String(q.get('scope') ?? 'lab').slice(0, 200), nonce = b64url(globalThis.crypto.getRandomValues(new Uint8Array(16)));
+    const payload = b64url(enc.encode(JSON.stringify({ ci: client.id, ru, st, cc, sc, t: now() })));
+    const signed = `${payload}.${b64url(await mac('consent-req', payload))}`, csrf = b64url(await mac('consent', `${nonce}\n${payload}`));
+    const to = new URL(ru), shown = to.protocol === 'https:' || to.protocol === 'http:' ? to.host : to.protocol.replace(/:$/, '');
+    // (the form's way on: here, GitHub, and the client — a browser checks a form's redirects against form-action too)
+    const formTo = [c.web, /^https?:$/.test(to.protocol) ? to.origin : to.protocol].map((x) => String(x).replace(/[;'\s]/g, ''));
+    const cancel = withQuery(ru, { error: 'access_denied', ...(st ? { state: st } : {}) });
+    return page(200, 'AI にラボの操作を許しますか', `<p><span class="who">「${esc(client.name)}」</span>が、あなたの GitHub のアカウントで <b>${esc(c.lab ?? 'このラボ')}</b> を操作する許可を求めています。</p>
+<p>許すと、その AI はあなたと同じ権限で、ワークフローを始め、実行のログを読み、ファイルを直し、秘密や変数を登録できます（ラボの役割の決まり・確認・監査ログはパネルと同じ。.github/ は変えられません）。</p>
+<p class="muted">許したあとの戻り先: <span class="host">${esc(shown)}</span>　知らないアプリなら「やめる」を押してください。</p>
+<form method="post" action="/authorize"><input type="hidden" name="req" value="${esc(signed)}"><input type="hidden" name="csrf" value="${esc(csrf)}">
+<div class="row"><button class="go" type="submit">許可して GitHub へ</button><a class="btn" href="${esc(cancel)}">やめる</a></div></form>`, { formTo, cookies: [consentCookie(nonce, TTL / 1000)] });
+  }
+  /** POST /authorize: the page's own form (its cookie, its CSRF value, its signed request, fresh) → the GitHub sign-in begun as
+   *  /login does, the client's request riding in the state */
+  async function authorizeYes(req, url) {
+    const site = req.headers.get('sec-fetch-site');
+    if (site && site !== 'same-origin') return stop(403, 'このページの外から送られました。');
+    if (Number(req.headers.get('content-length') ?? 0) > 16384) return stop(413, '送られたものが大きすぎます。');
+    const p = new URLSearchParams((await req.text().catch(() => '')).slice(0, 16384)), nonce = consentOf(req);
+    const m = /^([A-Za-z0-9_-]{1,8000})\.([A-Za-z0-9_-]{43})$/.exec(p.get('req') ?? '');
+    if (!nonce || !m || !(await macOk('consent', `${nonce}\n${m[1]}`, p.get('csrf') ?? '')) || !(await macOk('consent-req', m[1], m[2]))) return stop(403, '許可の画面が古いか、ほかの画面から送られました。');
+    let r; try { r = JSON.parse(dec.decode(unb64url(m[1]))); } catch { return stop(400, '許可の中身が読めません。'); }
+    const age = now() - Number(r.t);
+    if (!(age <= TTL && age >= -60_000)) return stop(400, '許可の画面が古くなりました（10 分）。');
+    const client = await openClient(r.ci);
+    if (!client || !client.uris.includes(r.ru)) return stop(400, 'この AI のアプリの登録が変わりました。');
+    const { state, cookie: kept, k } = await begin('', { ru: r.ru, st: String(r.st ?? ''), cc: String(r.cc), ch: await sha(client.id), sc: String(r.sc ?? 'lab') });
+    const q = new URLSearchParams({ client_id: c.clientId, redirect_uri: `${url.origin}/callback`, state });
+    if (GITHUB.pkce) { q.set('code_challenge', b64url(await subtle().digest('SHA-256', enc.encode(await verifierOf(k))))); q.set('code_challenge_method', 'S256'); }
+    const headers = new Headers({ ...HEADERS, location: `${c.web}${GITHUB.authorize}?${q}` });
+    headers.append('set-cookie', cookie(kept, TTL / 1000));
+    headers.append('set-cookie', consentCookie('', 0));
+    return new Response(null, { status: 302, headers });
+  }
+  /** GitHub back to /callback for an AI client: the same browser (the cookie's k), in time, GitHub's code traded — then a
+   *  short-lived code of this service's own, sealed with the person's tokens, to the client's own address */
+  async function mcpCallback(url, req, s) {
+    const m = s.m, clear = cookie('', 0);
+    const back = (params) => reply(302, null, { 'set-cookie': clear, location: withQuery(m.ru, { ...params, ...(m.st ? { state: m.st } : {}), iss: url.origin }) });
+    const raw = cookieOf(req);
+    if (!raw) return back({ error: 'access_denied', error_description: 'cookie' });
+    const k = await openCookie(raw);
+    if (!k) return reply(400, { error: 'cookie' }, { 'set-cookie': clear });
+    if (!(await macOk('bind', k, s.h))) return back({ error: 'access_denied', error_description: 'cookie' });
+    const age = now() - s.t;
+    if (!(age <= TTL && age >= -60_000)) return back({ error: 'access_denied', error_description: 'expired' });
+    if (url.searchParams.get('error')) return back({ error: 'access_denied' });
+    const code = url.searchParams.get('code') ?? '';
+    if (!/^[\x21-\x7e]{1,512}$/.test(code)) return back({ error: 'server_error', error_description: 'code' });
+    const t = await exchange({ code, redirect_uri: `${url.origin}/callback`, ...(GITHUB.pkce ? { code_verifier: await verifierOf(k) } : {}) });
+    if (!t.ok) return back({ error: 'server_error', error_description: t.error });
+    return back({ code: await box.seal('code', { gh: t.tokens, cc: m.cc, ch: m.ch, ru: m.ru, sc: m.sc, exp: now() + 120_000 }) });
+  }
+  async function issue(gh, chash, scope, url) {
+    const life = gh.expires_in ?? 30 * 86400;
+    const out = { access_token: await box.seal('access', { gh: gh.access_token, exp: now() + life * 1000, aud: `${url.origin}/mcp`, ch: chash }), token_type: 'Bearer', expires_in: life, scope: scope || 'lab' };
+    if (gh.refresh_token) out.refresh_token = await box.seal('refresh', { gh: gh.refresh_token, ch: chash, sc: scope || 'lab', exp: now() + (gh.refresh_token_expires_in ?? 180 * 86400) * 1000 });
+    return reply(200, out, { ...OPEN, pragma: 'no-cache' });
+  }
+  async function token(req, url) {
+    const bad = (error, status = 400) => reply(status, { error }, OPEN);
+    if (Number(req.headers.get('content-length') ?? 0) > 16384) return bad('invalid_request');
+    const text = (await req.text().catch(() => '')).slice(0, 16384), ct = req.headers.get('content-type') ?? '';
+    let p;
+    if (/json/i.test(ct)) { try { const j = JSON.parse(text); p = j && typeof j === 'object' && !Array.isArray(j) ? Object.fromEntries(Object.entries(j).map(([k, v]) => [k, String(v)])) : null; } catch { p = null; } }
+    else p = Object.fromEntries(new URLSearchParams(text));
+    if (!p) return bad('invalid_request');
+    let cid = p.client_id, secret = p.client_secret;
+    const basic = /^Basic\s+([A-Za-z0-9+/=]{1,8000})$/i.exec(req.headers.get('authorization') ?? '');
+    if (basic) { try { const [a, b = ''] = atob(basic[1]).split(':'); cid = decodeURIComponent(a); secret = decodeURIComponent(b); } catch { return bad('invalid_client', 401); } }
+    const client = await openClient(cid);
+    if (!client) return bad('invalid_client', 401);
+    if (client.method !== 'none' && !(await macOk('client-secret', client.id, String(secret ?? '')))) return bad('invalid_client', 401);
+    const chash = await sha(client.id);
+    if (p.grant_type === 'authorization_code') {
+      const code = await box.open('code', p.code);
+      if (!code || !(code.exp > now()) || code.ch !== chash || (p.redirect_uri !== undefined && p.redirect_uri !== code.ru)) return bad('invalid_grant');
+      const v = String(p.code_verifier ?? '');
+      if (!/^[A-Za-z0-9._~-]{43,128}$/.test(v) || (await sha(v)) !== code.cc) return bad('invalid_grant');
+      return issue(code.gh, chash, code.sc, url);
+    }
+    if (p.grant_type === 'refresh_token') {
+      const r = await box.open('refresh', p.refresh_token);
+      if (!r || r.ch !== chash || !(r.exp > now())) return bad('invalid_grant');
+      const t = await exchange({ grant_type: 'refresh_token', refresh_token: r.gh });
+      if (!t.ok) return t.error === 'github' ? bad('temporarily_unavailable', 503) : bad('invalid_grant');
+      return issue(t.tokens, chash, r.sc, url);
+    }
+    return bad('unsupported_grant_type');
+  }
+  const MCP_ROUTES = { '/.well-known/oauth-authorization-server': 'GET', '/.well-known/oauth-protected-resource': 'GET', '/.well-known/oauth-protected-resource/mcp': 'GET', '/register': 'POST', '/authorize': 'GET POST', '/token': 'POST' };
+  async function mcpRoute(req, url, path) {
+    if (req.method === 'OPTIONS') return path === '/authorize' ? reply(405, { error: 'method' }) : reply(204, null, OPEN);
+    if (!MCP_ROUTES[path].split(' ').includes(req.method)) return reply(405, { error: 'method' }, { ...OPEN, allow: MCP_ROUTES[path].replace(' ', ', ') });
+    if (path === '/.well-known/oauth-authorization-server') return reply(200, asMeta(url.origin), OPEN);
+    if (path.startsWith('/.well-known/oauth-protected-resource')) return reply(200, prMeta(url.origin), OPEN);
+    if (c.missing.length) return path === '/authorize' ? stop(503, 'サインインのサービスの設定が足りません（パネルの「準備」）。') : reply(503, { error: 'temporarily_unavailable' }, OPEN);
+    if (path === '/register') return register(req);
+    if (path === '/token') return token(req, url);
+    return req.method === 'GET' ? authorizeAsk(url) : authorizeYes(req, url);
+  }
+
   const ROUTES = { '/health': 'GET', '/login': 'GET', '/callback': 'GET', '/refresh': 'POST', '/logout': 'POST' };
   async function route(req) {
     const url = new URL(req.url), path = url.pathname, want = ROUTES[path];
+    if (MCP_ROUTES[path]) return mcpRoute(req, url, path);
     if (!want) return reply(404, { error: 'not_found' });
     // (CORS for the panel's own origins alone; a browser says where a call comes from — anything else is not the panel)
     const origin = req.headers.get('origin'), allowed = origin !== null && c.origins.includes(origin);
@@ -185,7 +415,7 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
       return allowed && path !== '/login' && path !== '/callback' ? reply(204, null, { ...cors, 'access-control-allow-methods': 'GET, POST', 'access-control-allow-headers': 'content-type', 'access-control-max-age': '600' }) : reply(403, { error: 'origin' }, { vary: 'Origin' });
     }
     if (req.method !== want) return reply(405, { error: 'method' }, { allow: `${want}, OPTIONS` });
-    if (path === '/health') return reply(c.missing.length ? 503 : 200, { ok: !c.missing.length, clientId: c.clientId || null, origins: c.origins, panels: c.panels.map((p) => p.href), version: VERSION, ...(c.missing.length ? { missing: c.missing } : {}) }, cors);
+    if (path === '/health') return reply(c.missing.length ? 503 : 200, { ok: !c.missing.length, clientId: c.clientId || null, origins: c.origins, panels: c.panels.map((p) => p.href), version: VERSION, lab: c.lab, ...(c.missing.length ? { missing: c.missing } : {}) }, cors);
     if (c.missing.length) return reply(500, { error: 'config' }, cors);
     if (path === '/login') return login(url);
     if (path === '/callback') return callback(url, req);

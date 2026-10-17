@@ -740,6 +740,28 @@ await t('全自動で準備する with Cloudflare\'s token pasted first: the add
   } finally { f.close(); delete globalThis.document.body.append; }
 });
 
+await t('🤖 AI から操作: with the sign-in service, a card with its MCP address, how Claude and others connect, a check that the API answers, and the Claude plugin; without the service, no card (fake DOM)', async () => {
+  const { E } = fakeDom();
+  const UI = await imp('panel/ui/setup.mjs');
+  const f = await fakeGitHub({ pages: { build_type: 'workflow' }, vars: { APP_ID: '5', APP_SLUG: 'lab-o', APP_CLIENT_ID: 'Iv1.app', LAB_AUTH_URL: AUTH_URL } });
+  try {
+    const asked = [];
+    const fetchImpl = async (url, o) => { asked.push(String(url)); if (String(url) === `${AUTH_URL}/api`) return { ok: true, status: 200, json: async () => ({ lab: 'o/lab', tools: new Array(34).fill({}) }) }; return f.fetchImpl(url, o); };
+    const base = { api: f.api, lab: LAB({ secrets: ['APP_PRIVATE_KEY', 'APP_CLIENT_SECRET', 'AUTH_STATE_SECRET'] }), hosts: [], me: { login: 'o' }, panelUrl: 'https://o.github.io/lab/', signedInWithApp: false, fetchImpl, storage: AC.memoryStorage(), location: { search: '', hash: '#setup', pathname: '/lab/', assign() {} }, history: { replaceState() {} } };
+    const none = new E('div');
+    await UI.setupTab(none, { ...base, config: {} });
+    ok(!none.all((e) => e.attrs.id === 'ai').length, 'no service: no card');
+    const b = new E('div');
+    await UI.setupTab(b, { ...base, config: { authUrl: AUTH_URL, appSlug: 'lab-o', appClientId: 'Iv1.app' } });
+    const card = b.all((e) => e.attrs.id === 'ai')[0];
+    ok(card && card.textContent.includes(`${AUTH_URL}/mcp`) && card.textContent.includes(`claude mcp add --transport http bds-lab ${AUTH_URL}/mcp`) && card.textContent.includes(`POST ${AUTH_URL}/api/<道具>`), card?.textContent);
+    ok(/\.github\//.test(card.textContent) && /監査ログ/.test(card.textContent), 'what the AI may not change, and that it is governed like the panel');
+    await card.all((e) => e.tagName === 'BUTTON' && e.textContent === 'API を確かめる')[0].click();
+    ok(/✅ API が答えました: 道具 34 個（o\/lab）/.test(card.textContent) && asked.includes(`${AUTH_URL}/api`), card.textContent);
+    ok(card.all((e) => e.tagName === 'BUTTON' && /Claude 用プラグイン/.test(e.textContent)).length === 1, 'the plugin\'s button');
+  } finally { f.close(); }
+});
+
 await t('a failure\'s notice offers the way out the page gives it (setOnFail: e.g. more rights), nothing when it gives none or it throws', async () => {
   const { toast } = fakeDom();
   const D = await imp('panel/ui/dom.mjs');

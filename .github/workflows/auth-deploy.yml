@@ -8,7 +8,8 @@ name: auth-deploy
 # and, from the GitHub App: variable APP_CLIENT_ID, secrets APP_CLIENT_SECRET and AUTH_STATE_SECRET. Which pages may use it:
 # variable LAB_PANEL_ORIGINS (default: this repository's own GitHub Pages, its path included — not the owner's other
 # repositories' pages on the same github.io). Its address is printed as the notice "auth-url"; the panel reads it into the
-# variable LAB_AUTH_URL. On a server of your own instead: auth/README.md (Docker).
+# variable LAB_AUTH_URL. The same Worker serves the lab's API for AI (auth/api.mjs: MCP at /mcp, plain HTTP at /api) for
+# this repository alone (LAB_SLUG); it bundles the panel's own modules (panel/lib). On a server of your own: auth/README.md.
 on:
   workflow_dispatch:
     inputs:
@@ -91,7 +92,7 @@ jobs:
           origins="${ORIGINS:-https://$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]').github.io/$REPO/}"
           W="npx --yes wrangler@4.148.0"
           # (Cloudflare's refusals said in words the panel shows as they are: workers.dev not chosen, the token, the account)
-          if ! $W deploy --var "PANEL_ORIGINS:$origins" --var "GITHUB_CLIENT_ID:$CLIENT_ID" > deploy.log 2>&1; then
+          if ! $W deploy --var "PANEL_ORIGINS:$origins" --var "GITHUB_CLIENT_ID:$CLIENT_ID" --var "LAB_SLUG:$OWNER/$REPO" > deploy.log 2>&1; then
             cat deploy.log
             if grep -qiE 'workers\.dev subdomain|register a workers' deploy.log; then fail "Cloudflare の workers.dev の名前がまだありません: dash.cloudflare.com の「Workers & Pages」を一度開いて名前を決めてから、もう一度"; fi
             if grep -qiE 'Authentication error|Invalid API Token|code: (10000|9109|6003)' deploy.log; then fail "Cloudflare がトークンを断りました: テンプレート「Edit Cloudflare Workers」で作り直し、パネルの「準備」で入れ直してください"; fi

@@ -76,7 +76,7 @@ npx wrangler secret put STATE_SECRET
 ## Docker で自分のサーバーに
 
 ```sh
-docker build -t bds-lab-auth auth/          # auth/ だけを入れる（node:22-alpine、root でない利用者 node）
+docker build -f auth/Dockerfile -t bds-lab-auth .   # ラボの一番上で。入るのは auth/ の 3 つとパネルの部品（panel/lib）だけ（node:22-alpine、root でない利用者 node）
 docker run -d --name bds-lab-auth --restart unless-stopped -p 127.0.0.1:8787:8787 --env-file auth.env bds-lab-auth
 ```
 
@@ -88,12 +88,42 @@ GITHUB_CLIENT_SECRET=...
 STATE_SECRET=...
 PANEL_ORIGINS=https://<owner>.github.io/<リポジトリ>/
 PUBLIC_URL=https://auth.<あなたのドメイン>
+LAB_SLUG=<owner>/<リポジトリ>
 ```
 
 **TLS の前段の後ろで動かします**: node.mjs は素の HTTP を話すだけです。Caddy・nginx・ロードバランサーなどで
 `https://auth.<あなたのドメイン>` を受け、`127.0.0.1:8787` に渡してください（cookie は Secure なので https でしか
 働きません）。例（Caddy）: `auth.example.jp { reverse_proxy 127.0.0.1:8787 }`。
 Docker なしなら `node auth/node.mjs`（同じ env。`HOST` は既定 127.0.0.1）。
+
+## AI から操作（MCP・HTTP: api.mjs）
+
+同じサービスに、AI がラボを直接操作するための API があります（[api.mjs](api.mjs)）。パネルと同じ部品（`panel/lib`）で、
+パネルと同じことを **34 の道具**としてします: ラボの様子・準備の確かめと直し・実行の一覧と中身とログ（grep）・やり直し・止める・
+ワークフローを始める・ユニットの一覧と試験と仕上げと新規・AI に作らせる・ファイルを読む・書く・消す・秘密・変数・リリース・成果物・
+メンバー・監査ログ・失敗から Issue・予約。
+
+| 道 | すること |
+|---|---|
+| `POST /mcp` | MCP（Streamable HTTP、JSON で答える。`initialize`・`tools/list`・`tools/call`・`ping`）。トークンがなければ 401 と `WWW-Authenticate: Bearer resource_metadata=…` |
+| `GET /api` | 道具の一覧（名前・説明・入力の JSON Schema・ポリシーの操作）。トークン不要 |
+| `POST /api/<道具>` | 1 回の呼び出し（本文は引数の JSON）→ `{ ok, summary, result, text? }`。断りは `{ ok: false, error }` と状態（403 役割・428 確認が要る・409 sha が古い…） |
+| `GET /.well-known/oauth-protected-resource` | MCP の資源のメタデータ（`/mcp` 付きも） |
+| `GET /.well-known/oauth-authorization-server` | 認可サーバーのメタデータ（S256・動的登録） |
+| `POST /register` | 動的なクライアント登録（RFC 7591）: 戻る先は https、この機械の http、アプリ独自のスキームだけ。登録は署名した値（保存しない） |
+| `GET /authorize` → `POST /authorize` | このサービス自身の同意の画面（クライアントの名前と戻る先を見せる。cookie に結び付けた CSRF の値）→ GitHub App のサインイン |
+| `POST /token` | `authorization_code`（PKCE S256 必須）・`refresh_token`。トークンは GitHub のトークンを封じた値（AES-GCM、鍵は STATE_SECRET から） |
+
+- **誰として**: つないだ人の GitHub のユーザーのトークンで動きます（MCP の OAuth で受け取って封じたもの、または
+  `Authorization: Bearer <GitHub のトークン>` をそのまま）。見える・できるのは GitHub がその人に許すことだけで、さらに
+  ラボの役割の決まり（`.github/bds-lab-panel.json`: GitHub の役割より広くはならない）・確認（決まりの `confirm` と AI の料金は
+  `confirm: true` が要る）・監査ログ（`via: mcp` / `api`）はパネルと同じです。
+- **変えないもの**: `.github/`（CI と決まり。予約だけは `schedule_set` で検査してから）・`auto/policy.json`・`auto/STOP`・`.env`。
+  ファイルは読んだときの sha の上にだけ書きます（盲目の上書きはしない）。
+- **どのラボ**: `LAB_SLUG` の 1 つだけ（auth-deploy.yml がそのリポジトリを入れます）。
+- **Claude から**: パネルの「準備」→「🤖 AI から操作」の「Claude 用プラグイン（.plugin）」（MCP とスキル入り）を Claude に入れるか、
+  Claude の「コネクタ」→「カスタムコネクタを追加」に `<このサービス>/mcp`。Claude Code: `claude mcp add --transport http bds-lab <このサービス>/mcp`。
+  コマンドでプラグインを作るなら `node common/claude-plugin.mjs --url <このサービス> --lab <owner/repo>`。
 
 ## 守っていること
 

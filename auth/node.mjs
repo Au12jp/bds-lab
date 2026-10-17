@@ -2,21 +2,23 @@
 // 127.0.0.1 unless set; the Dockerfile sets 0.0.0.0). It speaks plain HTTP: put it behind TLS (a reverse proxy — Caddy,
 // nginx, a load balancer) at the root of its own https origin, and set PUBLIC_URL to that origin (GitHub sends people back
 // to <PUBLIC_URL>/callback; its cookie is Secure). It logs no request: a callback's address carries a code.
-//   node auth/node.mjs        (env: GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET PANEL_ORIGINS STATE_SECRET PUBLIC_URL [PORT HOST])
+//   node auth/node.mjs        (env: GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET PANEL_ORIGINS STATE_SECRET PUBLIC_URL LAB_SLUG [PORT HOST])
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { handler, config, HEADERS } from './handler.mjs';
+import { api } from './api.mjs';
 
-const LIMIT = 16 * 1024;
+// (the sign-in's bodies are small; a file written through the API comes whole: up to 1 MB, as base64 in JSON)
+const LIMIT = 16 * 1024, API_LIMIT = 2 * 1024 * 1024;
 /** env → a node:http server of the handler (not listening yet) */
 export function server(env = process.env, opts = {}) {
-  const h = handler(env, opts);
+  const auth = handler(env, opts), lab = api(env, { ...opts, self: auth }), h = async (req) => (await lab(req)) ?? auth(req);
   // (the address people and GitHub see: PUBLIC_URL's origin; else what the request says it reached — fine on this machine)
   let pub = null; try { pub = env.PUBLIC_URL ? new URL(env.PUBLIC_URL).origin : null; } catch { /* not an address: the request's own */ }
   return http.createServer(async (req, res) => {
     try {
-      const chunks = []; let size = 0;
-      for await (const c of req) { size += c.length; if (size > LIMIT) { res.writeHead(413, { ...HEADERS, 'content-type': 'application/json; charset=utf-8' }); res.end('{"error":"body"}'); req.destroy(); return; } chunks.push(c); }
+      const chunks = [], limit = /^\/(mcp|api)(\/|$|\?)/.test(String(req.url ?? '')) ? API_LIMIT : LIMIT; let size = 0;
+      for await (const c of req) { size += c.length; if (size > limit) { res.writeHead(413, { ...HEADERS, 'content-type': 'application/json; charset=utf-8' }); res.end('{"error":"body"}'); req.destroy(); return; } chunks.push(c); }
       // (only the path and query of what was asked: an absolute address in the request line names no other origin)
       const rel = new URL(req.url ?? '/', 'http://localhost'), url = `${pub ?? `http://${req.headers.host ?? '127.0.0.1'}`}${rel.pathname}${rel.search}`;
       const headers = new Headers();

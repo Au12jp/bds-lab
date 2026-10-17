@@ -41,6 +41,8 @@ const DETAIL = {
   // (a variable's value before it was changed — only of the lab's own settings that are no secret, BEFORE_NAMES: the 「↩️ 取り消す」
   // of lib/undo.mjs puts it back; one line, short, never a token's look)
   before: (v) => typeof v === 'string' && v.length <= 1000 && !/[\u0000-\u001f]/.test(v),
+  // (where it was done: the panel, or the lab's API for AI — by MCP or plain HTTP: auth/api.mjs)
+  via: (v) => v === 'panel' || v === 'api' || v === 'mcp',
 };
 /** the variables whose value before may be kept (they are the lab's settings: which lenders, which runs are told — no secret) */
 export const BEFORE_NAMES = ['LAB_HOSTS', 'LAB_NOTIFY', 'LAB_NOTIFY_FILES'];

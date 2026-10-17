@@ -205,7 +205,7 @@ await t('refresh: from the panel\'s origin, the refresh token traded (grant_type
   }
   eq((await ask(`${AUTH}/refresh`, { headers: { origin: PANEL } })).status, 405, 'GET: not this way');
   const health = await ask(`${AUTH}/health`, { headers: { origin: PANEL } });
-  eq([health.status, health.json, health.headers['access-control-allow-origin']], [200, { ok: true, clientId: CLIENT_ID, origins: [PANEL, 'http://127.0.0.1:9', PAGES], panels: [`${PANEL}/`, 'http://127.0.0.1:9/', `${PAGES}/bds-lab/`], version: A.VERSION }, PANEL], 'health: the panel may read it (origins for CORS, panels where a sign-in returns)');
+  eq([health.status, health.json, health.headers['access-control-allow-origin']], [200, { ok: true, clientId: CLIENT_ID, origins: [PANEL, 'http://127.0.0.1:9', PAGES], panels: [`${PANEL}/`, 'http://127.0.0.1:9/', `${PAGES}/bds-lab/`], version: A.VERSION, lab: null }, PANEL], 'health: the panel may read it (origins for CORS, panels where a sign-in returns)');
   eq((await ask(`${AUTH}/health`, { headers: { origin: 'https://evil.test' } })).headers['access-control-allow-origin'], undefined, 'not for another origin');
 });
 
@@ -239,12 +239,12 @@ await t('every answer: no-store, no Referer, nosniff, a CSP that loads and frame
   // a service without its settings: says which are missing (names, never values), signs nobody in
   const bare = A.handler({ GITHUB_CLIENT_SECRET: CLIENT_SECRET, STATE_SECRET: 'short' });
   const h = await bare(new Request(`${AUTH}/health`));
-  eq([h.status, await h.json()], [503, { ok: false, clientId: null, origins: [], panels: [], version: A.VERSION, missing: ['GITHUB_CLIENT_ID', 'STATE_SECRET', 'PANEL_ORIGINS'] }]);
+  eq([h.status, await h.json()], [503, { ok: false, clientId: null, origins: [], panels: [], version: A.VERSION, lab: null, missing: ['GITHUB_CLIENT_ID', 'STATE_SECRET', 'PANEL_ORIGINS'] }]);
   const l = await bare(new Request(`${AUTH}/login?return=${encodeURIComponent(`${PANEL}/`)}`));
   eq([l.status, await l.json()], [500, { error: 'config' }]);
 });
 
-await t('the files that run it: handler.mjs uses no node: module (Workers and browsers run it as it is); worker.mjs exports { fetch(req, env) }; wrangler.toml names bds-lab-auth / worker.mjs; the Dockerfile is node:22-alpine, auth/ alone, not root', async () => {
+await t('the files that run it: handler.mjs uses no node: module (Workers and browsers run it as it is); worker.mjs exports { fetch(req, env) }; wrangler.toml names bds-lab-auth / worker.mjs; the Dockerfile is node:22-alpine, auth/ and panel/lib alone, not root', async () => {
   for (const f of ['auth/handler.mjs', 'auth/worker.mjs', 'panel/lib/session.mjs', 'panel/lib/accounts.mjs']) ok(!/from 'node:|require\(/.test(fs.readFileSync(path.join(TOP, f), 'utf8')), `${f}: no node: import`);
   const W = await imp('auth/worker.mjs');
   eq([Object.keys(W.default), typeof W.default.fetch, W.default.fetch.length], [['fetch'], 'function', 2]);
@@ -253,7 +253,8 @@ await t('the files that run it: handler.mjs uses no node: module (Workers and br
   const toml = fs.readFileSync(path.join(TOP, 'auth', 'wrangler.toml'), 'utf8');
   ok(/^name = "bds-lab-auth"$/m.test(toml) && /^main = "worker\.mjs"$/m.test(toml) && !/SECRET\s*=/.test(toml), toml);
   const df = fs.readFileSync(path.join(TOP, 'auth', 'Dockerfile'), 'utf8'), from = df.split('\n').filter((l) => /^(FROM|COPY|ADD|USER) /.test(l));
-  ok(from[0] === 'FROM node:22-alpine' && from.filter((l) => /^(COPY|ADD) /.test(l)).every((l) => /^COPY (handler|node)\.mjs (handler|node)\.mjs \.\/$/.test(l)) && /^USER (?!root)\w+/.test(from.at(-1)), from.join('\n'));
+  // (auth/'s three files and the panel's pure modules the API runs: nothing else of the lab)
+  ok(from[0] === 'FROM node:22-alpine' && JSON.stringify(from.filter((l) => /^(COPY|ADD) /.test(l))) === JSON.stringify(['COPY auth/handler.mjs auth/api.mjs auth/node.mjs ./auth/', 'COPY panel/lib/ ./panel/lib/']) && /^USER (?!root)\w+/.test(from.at(-1)), from.join('\n'));
 });
 
 await t('auth/node.mjs on a free port: the same sign-in through node:http (cookie, Origin and body passed through; PUBLIC_URL is the address GitHub sends people back to)', async () => {

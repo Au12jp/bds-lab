@@ -25,7 +25,9 @@ const RULES = [
   [/^panel\/(lib|ui)\//, ['tests/stats-offline.mjs']],
   [/^panel\/(lib|ui)\/|^panel\/sw\.js$/, ['tests/inbox-offline.mjs']],
   [/^host\/template\//, ['tests/panel-offline.mjs']],
-  [/^auth\//, ['tests/auth-offline.mjs', BROWSER]],
+  [/^auth\//, ['tests/auth-offline.mjs', 'tests/api-offline.mjs', BROWSER]],
+  // (the lab's API for AI runs the panel's own modules: a change to one is tried through it too)
+  [/^panel\/lib\/|^common\/claude-plugin\.mjs$/, ['tests/api-offline.mjs']],
   [/^common\/(panel-config|ghapp)\.mjs$/, ['tests/appci-offline.mjs', 'tests/panel-offline.mjs']],
   [/^common\/panel\.mjs$/, ['tests/panel-offline.mjs']],
   [/^panel\/(a11y|panel)\.css$/, ['tests/a11y-offline.mjs']],
@@ -37,7 +39,7 @@ const RULES = [
     'tests/minutes-offline.mjs', 'tests/lendfc-offline.mjs', 'tests/nlsched-offline.mjs', 'tests/wizard-offline.mjs', 'tests/a11y-offline.mjs', 'tests/inviteqr-offline.mjs', 'tests/undo-offline.mjs']],
   [/^tests\/(panel-offline|panel-browser|governance-offline|setup-offline|session-offline|auth-offline|appci-offline|units-offline|schedule-offline|stats-offline|inbox-offline|rescue-offline|shell-rescue-offline|setup-rescue-offline|units-rescue-offline|misc-rescue-offline|ghrules-offline|fakes-rules-offline|connect-ui-offline|qr-offline|playcard-offline|relnotes-offline|packdiff-offline|revert-offline|drafts-offline|tutorial-offline|progress-offline|failsum-offline|runissue-offline|runcompare-offline|testhist-offline|secretwatch-offline|connectdaily-offline|weekly-offline|notifyprefs-offline|minutes-offline|lendfc-offline|nlsched-offline|wizard-offline|a11y-offline|inviteqr-offline|undo-offline|statuspage-offline)\.mjs$/, (f) => [f]],
 ];
-export const ALL = ['tests/panel-offline.mjs', 'tests/governance-offline.mjs', 'tests/setup-offline.mjs', 'tests/session-offline.mjs', 'tests/auth-offline.mjs', 'tests/appci-offline.mjs',
+export const ALL = ['tests/panel-offline.mjs', 'tests/governance-offline.mjs', 'tests/setup-offline.mjs', 'tests/session-offline.mjs', 'tests/auth-offline.mjs', 'tests/api-offline.mjs', 'tests/appci-offline.mjs',
   'tests/units-offline.mjs', 'tests/schedule-offline.mjs', 'tests/stats-offline.mjs', 'tests/inbox-offline.mjs',
   'tests/rescue-offline.mjs', 'tests/shell-rescue-offline.mjs', 'tests/setup-rescue-offline.mjs', 'tests/units-rescue-offline.mjs', 'tests/misc-rescue-offline.mjs',
   'tests/ghrules-offline.mjs', 'tests/fakes-rules-offline.mjs', 'tests/connect-ui-offline.mjs',
@@ -80,7 +82,7 @@ const eslint = (files) => (fs.existsSync(LOCAL_ESLINT) ? runOne(process.execPath
 
 /** the checks run → true when all passed; out: each one ✔/✘ with its time, a failure's lines */
 export function check({ files, quick = false, all = false, out = console.log } = {}) {
-  const p = all ? { lint: ['panel', 'auth', 'common/panel.mjs', 'common/panel-config.mjs', 'common/ghapp.mjs', 'common/hosts.mjs', ...ALL], tests: ALL.filter((t) => !(quick && t === BROWSER)) } : plan(files ?? changed(), { quick });
+  const p = all ? { lint: ['panel', 'auth', 'common/panel.mjs', 'common/panel-config.mjs', 'common/ghapp.mjs', 'common/hosts.mjs', 'common/claude-plugin.mjs', ...ALL], tests: ALL.filter((t) => !(quick && t === BROWSER)) } : plan(files ?? changed(), { quick });
   if (!p.lint.length && !p.tests.length) { out('panel: 変えたファイルに、パネルの試験の要るものはありません（--all ですべて）'); return true; }
   let ok = true;
   const say = (name, r) => { ok &&= r.ok; out(`${r.ok ? '✔' : '✘'} ${name}（${(r.ms / 1000).toFixed(1)} 秒）`); if (!r.ok) for (const x of failLines(r.out)) out(`    ${x}`); };

@@ -157,3 +157,26 @@ export const fromB64 = (s) => Uint8Array.from(atob(String(s)), (c) => c.charCode
 export const toB64 = (b) => { let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
 /** what GitHub's PUT /actions/secrets/{name} takes: { encrypted_value, key_id } from the value and GET …/secrets/public-key's answer */
 export const secretPayload = (value, { key, key_id: keyId }, opts) => ({ encrypted_value: toB64(sealBox(value, key, opts)), key_id: keyId });
+/** crypto_box_seal with the platform's own X25519 when it has one (WebCrypto: Node 22, Cloudflare Workers, current browsers):
+ *  the two scalar multiplications are what costs in BigInt (~6 ms — most of a Worker's CPU time on Cloudflare's free plan);
+ *  the rest (BLAKE2b, HSalsa20, XSalsa20-Poly1305) stays here. The same bytes as sealBox would make with that ephemeral key;
+ *  a platform without X25519 gets sealBox itself */
+export async function sealBoxFast(message, publicKey) {
+  const pk = typeof publicKey === 'string' ? fromB64(publicKey) : publicKey;
+  if (pk.length !== 32) throw new Error('公開鍵は 32 バイトです');
+  const m = typeof message === 'string' ? new TextEncoder().encode(message) : message, subtle = globalThis.crypto?.subtle;
+  let epk, shared;
+  try {
+    const kp = await subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
+    epk = new Uint8Array(await subtle.exportKey('raw', kp.publicKey));
+    const theirs = await subtle.importKey('raw', pk, { name: 'X25519' }, false, []);
+    shared = new Uint8Array(await subtle.deriveBits({ name: 'X25519', public: theirs }, kp.privateKey, 256));
+  } catch { return sealBox(m, pk); }
+  const both = new Uint8Array(64); both.set(epk, 0); both.set(pk, 32);
+  const c = secretbox(m, blake2b(both, 24), hsalsa20(shared, new Uint8Array(16))), out = new Uint8Array(32 + c.length);
+  shared.fill(0);
+  out.set(epk, 0); out.set(c, 32);
+  return out;
+}
+/** secretPayload through sealBoxFast (the same JSON for GitHub) */
+export const secretPayloadFast = async (value, { key, key_id: keyId }) => ({ encrypted_value: toB64(await sealBoxFast(value, key)), key_id: keyId });
