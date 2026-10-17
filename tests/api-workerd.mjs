@@ -33,7 +33,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer().listen(
 
 // ---- a fake GitHub: its web sign-in, its API for the lab o/lab (public: no audit log), the log storage, the panel's config ----
 const CLIENT_ID = 'Iv23liFAKECLIENT', CLIENT_SECRET = 'fake-client-secret-0123456789abcdef', STATE_SECRET = 'fake-state-secret-0123456789abcdef-0123456789';
-const SELF = 'https://bds-lab-auth.test', OWNER = 'ghp_OwnerToken0123456789abcdefghij';
+const SELF = 'https://bds-lab-auth.test', OWNER = 'ghp_fake_owner_token_0123456789abcd';
 const sk = crypto.randomBytes(32), pk = SEAL.x25519Public(sk);
 const G = { tokens: { [OWNER]: 'o' }, codes: new Map(), files: new Map(), secrets: new Map(), dispatched: [], blobAuth: [], agents: new Set(), n: 0 };
 const put = (p, text) => G.files.set(p, { bytes: Buffer.from(text), sha: crypto.createHash('sha1').update(`${p}\n${text}\n${Math.random()}`).digest('hex') });

@@ -24,7 +24,7 @@ const sha256 = (s) => b64url(crypto.createHash('sha256').update(s).digest());
 // ---- a fake GitHub: /web (the App's sign-in) and /api (the lab o/lab, private: the audit log is kept) ----
 const CLIENT_ID = 'Iv23liFAKECLIENT', CLIENT_SECRET = 'fake-client-secret-0123456789abcdef', STATE_SECRET = 'fake-state-secret-0123456789abcdef-0123456789';
 const AUTH = 'https://auth.test', RU = 'https://claude.test/api/mcp/auth_callback';
-const TOKENS = { ghp_OwnerToken0123456789abcdefghij: 'o', ghp_WriterToken0123456789abcdefghi: 'w', ghp_ReaderToken0123456789abcdefghi: 'r' };
+const TOKENS = { ghp_fake_owner_token_0123456789abcd: 'o', ghp_fake_writer_token_0123456789abc: 'w', ghp_fake_reader_token_0123456789abc: 'r' };
 const sk = crypto.randomBytes(32), pk = SEAL.x25519Public(sk);
 const gitSha = (s) => crypto.createHash('sha1').update(s).digest('hex');
 const G = {
@@ -493,19 +493,19 @@ await t('the role policy and GitHub: a policy that allows a role only to start w
   const none = await call('lab_status');
   ok(none.status === 401 && /resource_metadata=/.test(none.headers.get('www-authenticate')), 'no token');
   eq((await call('lab_status', {}, 'not-a-token-at-all-123')).status, 401, 'something that is no token');
-  const owner = await call('lab_status', {}, 'ghp_OwnerToken0123456789abcdefghij');
+  const owner = await call('lab_status', {}, 'ghp_fake_owner_token_0123456789abcd');
   ok(owner.status === 200 && owner.json.ok && owner.json.result.you.login === 'o' && owner.json.result.you.via === 'token', owner.text.slice(0, 300));
-  eq((await call('nope', {}, 'ghp_OwnerToken0123456789abcdefghij')).status, 404);
-  eq((await H(`${AUTH}/api/lab_status`, { method: 'POST', headers: { authorization: 'Bearer ghp_OwnerToken0123456789abcdefghij' }, body: '{nope' })).status, 400, 'a body that is no JSON');
-  const reader = await call('workflow_run', { workflow: 'verify.yml' }, 'ghp_ReaderToken0123456789abcdefghi');
+  eq((await call('nope', {}, 'ghp_fake_owner_token_0123456789abcd')).status, 404);
+  eq((await H(`${AUTH}/api/lab_status`, { method: 'POST', headers: { authorization: 'Bearer ghp_fake_owner_token_0123456789abcd' }, body: '{nope' })).status, 400, 'a body that is no JSON');
+  const reader = await call('workflow_run', { workflow: 'verify.yml' }, 'ghp_fake_reader_token_0123456789abc');
   ok(reader.status === 403 && /ワークフローを始めるは、あなたの役割（read）には許されていません/.test(reader.json.error), reader.text);
-  const writer = await call('member_set', { login: 'newbie', permission: 'pull' }, 'ghp_WriterToken0123456789abcdefghi');
+  const writer = await call('member_set', { login: 'newbie', permission: 'pull' }, 'ghp_fake_writer_token_0123456789abc');
   ok(writer.status === 403 && /メンバーと役割を変える/.test(writer.json.error), writer.text);
-  const wsecret = await call('secret_set', { name: 'W_KEY', value: 'v' }, 'ghp_WriterToken0123456789abcdefghi');
+  const wsecret = await call('secret_set', { name: 'W_KEY', value: 'v' }, 'ghp_fake_writer_token_0123456789abc');
   ok(wsecret.status === 200 && G.secrets.has('W_KEY'), `a writer may (the default policy): ${wsecret.text}`);
-  const conf = await call('secret_delete', { name: 'W_KEY' }, 'ghp_WriterToken0123456789abcdefghi');
+  const conf = await call('secret_delete', { name: 'W_KEY' }, 'ghp_fake_writer_token_0123456789abc');
   eq(conf.status, 428, 'a confirmation needed: 428');
-  const read = await call('file_read', { path: 'AGENTS.md' }, 'ghp_WriterToken0123456789abcdefghi');
+  const read = await call('file_read', { path: 'AGENTS.md' }, 'ghp_fake_writer_token_0123456789abc');
   ok(read.status === 200 && read.json.text === '# bds-lab\n' && read.json.result.sha, read.text);
 });
 
@@ -634,16 +634,16 @@ await t('found at the service\'s own address: the page (what it is, how Claude a
   ok(new Set(Object.values(oa.paths).map((x) => x.post.operationId)).size === 34, 'an operationId each');
   const llms = await get('/llms.txt');
   ok(/text\/plain/.test(llms.type) && llms.text.includes(`${AUTH}/mcp`) && llms.text.includes('urn:ietf:params:oauth:grant-type:device_code') && llms.text.includes('- file_write (write):'), llms.text.slice(0, 300));
-  const owner = { authorization: 'Bearer ghp_OwnerToken0123456789abcdefghij' };
+  const owner = { authorization: 'Bearer ghp_fake_owner_token_0123456789abcd' };
   const g = await get('/api/runs_list?workflow=verify.yml&limit=5', owner);
   ok(g.status === 200 && JSON.parse(g.text).result.runs.some((r) => r.id === 100) && JSON.parse(g.text).result.runs.every((r) => r.file === 'verify.yml'), g.text.slice(0, 200));
   const lg = await get('/api/run_log?job_id=1001&tail=2', owner);
   ok(lg.status === 200 && JSON.parse(lg.text).text.split('\n').length === 2, lg.text.slice(0, 200));
   eq((await get('/api/secret_set?name=X&value=y', owner)).status, 405, 'a write by GET');
   eq((await get('/api/runs_list?nope=1', owner)).status, 400, 'an unknown query argument');
-  const v = await labD(new Request(`${AUTH}/mcp`, jsonPost({ jsonrpc: '2.0', id: 1, method: 'ping' }, { authorization: 'Bearer ghp_OwnerToken0123456789abcdefghij', 'mcp-protocol-version': '1999-01-01' })));
+  const v = await labD(new Request(`${AUTH}/mcp`, jsonPost({ jsonrpc: '2.0', id: 1, method: 'ping' }, { authorization: 'Bearer ghp_fake_owner_token_0123456789abcd', 'mcp-protocol-version': '1999-01-01' })));
   ok(v.status === 400 && /Unsupported MCP-Protocol-Version/.test(await v.text()), 'an MCP version not spoken');
-  const v2 = await labD(new Request(`${AUTH}/mcp`, jsonPost({ jsonrpc: '2.0', id: 1, method: 'ping' }, { authorization: 'Bearer ghp_OwnerToken0123456789abcdefghij', 'mcp-protocol-version': '2025-06-18' })));
+  const v2 = await labD(new Request(`${AUTH}/mcp`, jsonPost({ jsonrpc: '2.0', id: 1, method: 'ping' }, { authorization: 'Bearer ghp_fake_owner_token_0123456789abcd', 'mcp-protocol-version': '2025-06-18' })));
   eq(v2.status, 200, 'one it speaks');
   // a long log: only its end looked at, lines numbered as in the whole
   const long = Array.from({ length: 30000 }, (_, i) => `2026-10-17T00:00:00.0000000Z line ${i + 1} ${'x'.repeat(20)}`).join('\n');
