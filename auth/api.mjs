@@ -126,12 +126,25 @@ function tools(H) {
       input: obj({ run_id: RUN_ID, job_id: int('a job id (run_detail); else the run\'s failed job, else its last', { minimum: 1 }), job: str('part of the job\'s name', { maxLength: 100 }), grep: str('only lines matching this regular expression (any case), with context', { maxLength: 200 }), context: int('lines around each match (default 2)', { minimum: 0, maximum: 20 }), tail: int('the last N lines (default 300)', { minimum: 1, maximum: 3000 }) }),
       description: 'A job\'s log as text (timestamps and colours taken off, lines numbered): its end, or the lines matching grep. Give run_id (the failed job is chosen) or job_id.',
       run: (ctx, a) => H.runLog(ctx, a) },
-    { name: 'run_rerun', title: '実行をやり直す', action: 'dispatch', audit: 'run.rerun', input: obj({ run_id: RUN_ID, failed_only: bool('only the failed jobs (default true)') }, ['run_id']),
-      description: 'Run a finished run again: its failed jobs (default) or all of it.',
-      run: (ctx, a) => H.guarded(ctx, 'dispatch', a, { run: String(a.run_id) }, () => ctx.api.call('POST', `/repos/${H.lab}/actions/runs/${a.run_id}/${a.failed_only === false ? 'rerun' : 'rerun-failed-jobs'}`), { audit: 'run.rerun', done: () => `run ${a.run_id} を${a.failed_only === false ? 'もう一度' : '（落ちたジョブだけ）やり直し'}始めました: run_detail で様子を` }) },
+    { name: 'run_rerun', title: '実行をやり直す', action: 'dispatch', audit: 'run.rerun', input: obj({ run_id: RUN_ID, failed_only: bool('true: only the failed and cancelled jobs; false: all of it; default: the failed ones when some failed, else all of it') }, ['run_id']),
+      description: 'Run a finished run again as a new attempt of the same run: a failed or cancelled run its failed and cancelled jobs, a passed one all of it (failed_only decides it yourself). Not a run that is still going (run_cancel stops it).',
+      run: async (ctx, a) => {
+        // (GitHub answers a rerun it will not do with 403 — "already running", "cannot be retried" — which read as a missing
+        // permission: the run is looked at first and the person told what is really the matter)
+        const run = await H.run(ctx, a.run_id), failed = FAILED.has(run.conclusion), only = a.failed_only ?? failed, next = (run.run_attempt ?? 1) + 1;
+        if (run.status !== 'completed') throw no(`run ${a.run_id} はまだ動いています（${run.status}）: 終わってからやり直せます（止めるなら run_cancel）`, 409);
+        if (only && !failed) throw no(`run ${a.run_id} には落ちたジョブがありません（${run.conclusion}）: 全部をもう一度なら failed_only: false で`, 409);
+        return H.guarded(ctx, 'dispatch', a, { run: String(a.run_id), failedOnly: only }, () => ctx.api.call('POST', `/repos/${H.lab}/actions/runs/${a.run_id}/${only ? 'rerun-failed-jobs' : 'rerun'}`),
+          { audit: 'run.rerun', done: () => `run ${a.run_id} を${only ? '（落ちたジョブだけ）やり直し' : 'もう一度'}始めました（${next} 回目）: run_detail で様子を`, result: () => ({ run: a.run_id, failedOnly: only, attempt: next, url: run.html_url }) });
+      } },
     { name: 'run_cancel', title: '実行を止める', action: 'run.cancel', input: obj({ run_id: RUN_ID }, ['run_id']),
-      description: 'Stop a run that is queued or running.',
-      run: (ctx, a) => H.guarded(ctx, 'run.cancel', a, { run: String(a.run_id) }, () => ctx.api.cancel(H.lab, a.run_id), { done: () => `run ${a.run_id} を止めました` }) },
+      description: 'Stop a run that is queued or running. GitHub stops it within seconds to a minute (its clean-up steps still run): run_detail until it says cancelled.',
+      run: async (ctx, a) => {
+        const run = await H.run(ctx, a.run_id);
+        if (run.status === 'completed') throw no(`run ${a.run_id} はもう終わっています（${run.conclusion}）: 止めるものはありません`, 409);
+        return H.guarded(ctx, 'run.cancel', a, { run: String(a.run_id) }, () => ctx.api.cancel(H.lab, a.run_id),
+          { done: () => `run ${a.run_id} を止めるよう GitHub に頼みました: 止まるまで数秒〜1 分ほど（後始末の段は動きます）。run_detail で cancelled になるのを確かめてください`, result: () => ({ run: a.run_id, url: run.html_url }) });
+      } },
     { name: 'workflows_list', title: 'ワークフローの一覧', readOnly: true, input: obj({}),
       description: 'The lab\'s workflows: file, name, state. workflow_get shows one\'s inputs; workflow_run starts one.',
       run: async (ctx) => { const ws = (await ctx.api.workflows(H.lab)).map((w) => ({ id: w.id, name: w.name, file: fileOf(w.path), state: w.state })); return { summary: ws.map((w) => `${w.file}${w.state === 'active' ? '' : `（${w.state}）`}`).join(' '), result: { workflows: ws } }; } },
@@ -156,8 +169,8 @@ function tools(H) {
       description: 'The lab\'s units — bds/addons/<name> (addons), end/plugins, ll/mods: title, description, version, how many test sections, the latest release.',
       run: (ctx, a) => H.units(ctx, a.q) },
     { name: 'unit_run', title: 'ユニットの試験・仕上げ', action: 'dispatch',
-      input: obj({ unit: str('the unit\'s name (bds/addons/<name>)', { maxLength: 40 }), job: { type: 'string', enum: [...W.RUN_JOBS], description: 'test: tests.txt on a real BDS with real clients (default); sim: the quick sandbox; go: test + QA + build the .mcaddon (a release)' } }, ['unit']),
-      description: 'Test or finish a unit on the lab\'s own Actions (unit.yml): test (default), sim or go. Returns the new run.',
+      input: obj({ unit: str('the unit\'s name (bds/addons/<name>)', { maxLength: 40 }), job: { type: 'string', enum: [...W.RUN_JOBS], description: 'test: tests.txt on a real BDS with real clients (default); sim: the quick sandbox; go: test + QA + build the .mcaddon (kept as the run\'s artifact unit-<name>)' } }, ['unit']),
+      description: 'Test or finish a unit on the lab\'s own Actions (unit.yml): test (default), sim or go. Returns the new run. go\'s .mcaddon is the run\'s artifact unit-<name>: artifacts_list with that run_id gives the link to download it.',
       run: async (ctx, a) => {
         const r = W.runInputs({ job: a.job ?? 'test', unit: a.unit });
         if (r.error) throw no(r.error);
@@ -220,7 +233,7 @@ function tools(H) {
       } },
     { name: 'secret_delete', title: '秘密を消す', action: 'secrets.delete', input: obj({ name: str('the secret', { maxLength: 100 }) }, ['name']),
       description: 'Delete an Actions secret of the lab (the default policy asks for confirm: true).',
-      run: (ctx, a) => { const n = nameOk(a.name, '秘密'); return H.guarded(ctx, 'secrets.delete', a, { name: n }, () => ctx.api.deleteSecret(H.lab, n), { done: () => `秘密 ${n} を消しました` }); } },
+      run: (ctx, a) => { const n = nameOk(a.name, '秘密'); return H.guarded(ctx, 'secrets.delete', a, { name: n }, () => ctx.api.deleteSecret(H.lab, n).catch(H.missing(`秘密 ${n} はありません（secrets_list で）`)), { done: () => `秘密 ${n} を消しました` }); } },
     { name: 'variables_list', title: '変数の一覧', readOnly: true, input: obj({}),
       description: 'The lab\'s Actions variables with their values (variables are not secret).',
       run: async (ctx) => {
@@ -237,16 +250,21 @@ function tools(H) {
       } },
     { name: 'variable_delete', title: '変数を消す', action: 'variables', input: obj({ name: str('the variable', { maxLength: 100 }) }, ['name']),
       description: 'Delete an Actions variable of the lab.',
-      run: (ctx, a) => { const n = nameOk(a.name, '変数'); return H.guarded(ctx, 'variables', a, { name: n }, () => ctx.api.call('DELETE', `/repos/${H.lab}/actions/variables/${encodeURIComponent(n)}`), { done: () => `変数 ${n} を消しました` }); } },
+      run: (ctx, a) => { const n = nameOk(a.name, '変数'); return H.guarded(ctx, 'variables', a, { name: n }, () => ctx.api.call('DELETE', `/repos/${H.lab}/actions/variables/${encodeURIComponent(n)}`).catch(H.missing(`変数 ${n} はありません（variables_list で）`)), { done: () => `変数 ${n} を消しました` }); } },
     { name: 'releases_list', title: '配布（リリース）', readOnly: true, input: obj({ limit: int('how many (default 10)', { minimum: 1, maximum: 30 }) }),
-      description: 'The lab\'s releases, newest first, with their files (.mcaddon …), sizes, downloads and links.',
+      description: 'The lab\'s GitHub releases, newest first, with their files, sizes, downloads and links. (unit_run job go keeps its .mcaddon as the run\'s artifact: artifacts_list.)',
       run: async (ctx, a) => {
         const rs = R.newestFirst(await R.listReleases(ctx.api, H.lab)).slice(0, a.limit ?? 10).map((r) => ({ tag: r.tag_name, name: r.name, draft: r.draft, prerelease: r.prerelease, published: r.published_at, url: r.html_url, assets: (r.assets ?? []).map((x) => ({ name: x.name, size: x.size, downloads: x.download_count, url: x.browser_download_url })) }));
         return { summary: rs.map((r) => `${r.tag}（${r.assets.map((x) => x.name).join(', ') || 'ファイルなし'}）`).join('\n') || 'リリースはありません', result: { releases: rs } };
       } },
     { name: 'artifacts_list', title: '成果物', readOnly: true, input: obj({ run_id: RUN_ID, limit: int('how many (default 30)', { minimum: 1, maximum: 100 }) }),
-      description: 'Actions artifacts — of one run, or the lab\'s newest: name, size, expired.',
-      run: async (ctx, a) => { const xs = (await ctx.api.artifacts(H.lab, { run: a.run_id, per: a.limit ?? 30 })).map((x) => ({ id: x.id, name: x.name, size: x.size_in_bytes, expired: x.expired, created: x.created_at, run: x.workflow_run?.id ?? null })); return { summary: xs.map((x) => `${x.name}${x.expired ? '（期限切れ）' : ''}`).join(' ') || '成果物はありません', result: { artifacts: xs } }; } },
+      description: 'Actions artifacts — of one run, or the lab\'s newest: name, size, expired, and url: the page a person signed in to GitHub downloads it from (unit_run job go keeps its .mcaddon here as unit-<name>). A rerun run lists each attempt\'s: the newest is first.',
+      run: async (ctx, a) => {
+        const [list, repo] = await Promise.all([ctx.api.artifacts(H.lab, { run: a.run_id, per: a.limit ?? 30 }), ctx.repo()]);
+        const xs = list.map((x) => { const run = x.workflow_run?.id ?? a.run_id ?? null; return { id: x.id, name: x.name, size: x.size_in_bytes, expired: x.expired, created: x.created_at, run, url: run && !x.expired ? `${repo.html_url}/actions/runs/${run}/artifacts/${x.id}` : null }; })
+          .sort((p, q) => String(q.created ?? '').localeCompare(String(p.created ?? '')));
+        return { summary: xs.map((x) => `${x.name}${x.expired ? '（期限切れ）' : ''}`).join(' ') || '成果物はありません', result: { artifacts: xs } };
+      } },
     { name: 'members_list', title: 'メンバー', readOnly: true, input: obj({}),
       description: 'The lab\'s people: the owner, collaborators with their GitHub role, pending invitations.',
       run: async (ctx) => { const m = await M.readMembers(ctx.api, H.lab, await ctx.repo()); return { summary: `${m.members.map((x) => `${x.login}（${x.permission}）`).join(' ')}${m.invitations.length ? ` 招待中: ${m.invitations.map((x) => x.login).join(' ')}` : ''}`, result: m }; } },
@@ -313,7 +331,8 @@ function tools(H) {
 export function instructions(lab, panel) {
   return `This server operates one bds-lab repository: ${lab} — a lab where AI makes Minecraft Bedrock addons and GitHub Actions proves them on a real Bedrock Dedicated Server with real clients. You act as the signed-in GitHub user: GitHub's permissions first, then the lab's role policy (.github/bds-lab-panel.json); writes go in the lab's audit log when it is kept. Answers are mostly Japanese; reply to the person in their language.
 Start with lab_status. To fix something that fails: runs_list → run_detail (where / why / next step) → run_log (grep) → file_read → file_write (with the sha you read; never blind) → unit_run (test) or workflow_run → run_detail until it is green.
-Units (addons) live in bds/addons/<name>/: src/main.ts (TypeScript, the Script API through src/kit.ts), tests.txt (one ## section per thing asked; a command line, then = exact, ~ regex, ! absent), TASK.md, bp/ and rp/. unit_run job=test runs tests.txt on a real server; job=go also does QA and builds the .mcaddon (releases_list). The lab's AGENTS.md (file_read) has the whole method.
+Units (addons) live in bds/addons/<name>/: src/main.ts (TypeScript, the Script API through src/kit.ts), tests.txt (one ## section per thing asked; a command line, then = exact, ~ regex, ! absent), TASK.md, bp/ and rp/. unit_run job=test runs tests.txt on a real server; job=go also does QA and builds the .mcaddon, kept as the run's artifact unit-<name> (artifacts_list with its run_id: the link to download it). The lab's AGENTS.md (file_read) has the whole method.
+Actions: workflow_run (workflow_get shows its inputs) and unit_run return the new run; run_detail until it is completed, run_log for what it printed, artifacts_list for what it kept. run_cancel asks GitHub to stop a run (it stops within a minute: run_detail again); run_rerun runs a finished run again (a failed or cancelled one: its failed jobs; a passed one: all of it). Give the person each run's url with what you found.
 Never through this API: .github/ (CI and policy; the timetable only by schedule_set), auto/policy.json, auto/STOP, .env files — a person changes those. When a tool says confirmation is needed, ask the person, then call again with confirm: true. Steps that need GitHub's own buttons (making or installing the GitHub App) are the person's, in the panel: ${panel || 'the lab\'s management panel'}. Never ask the person to paste a secret into the chat when the panel can take it; if they hand you one to set, use secret_set and do not repeat it.`;
 }
 
@@ -342,6 +361,10 @@ export function api(env = {}, { fetchImpl = (...a) => globalThis.fetch(...a), no
     },
     message: (m, d) => String(m ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200) || d,
     started: (what, run) => (run ? `${what}を始めました: run ${run.id}（run_detail で様子を）${run.url ? ` ${run.url}` : ''}` : `${what}を始めました（まだ一覧に出ていません: 少しして runs_list で）`),
+    /** one run as GitHub has it (its status before a rerun or a cancel), or "no such run" */
+    run: (ctx, id) => ctx.api.call('GET', `/repos/${lab}/actions/runs/${id}`).catch((e) => { if (e.status === 404) throw no(`run ${id} はありません（runs_list で）`, 404); throw e; }),
+    /** GitHub's 404 for a name that is not there (a secret, a variable), in words: not "the token does not see the lab" */
+    missing: (words) => (e) => { if (e.status === 404) throw no(words, 404); throw e; },
     /** the contents API's refusal of a stale sha, in words */
     stale: (p) => (e) => { if ((e.status === 409 || e.status === 422) && /does not match|sha|wasn't supplied/i.test(String(e.message))) throw no(`${p}: その間にほかの変更が入りました（sha が古い）: file_read で読み直して、もう一度`, 409); throw e; },
     async listRuns(ctx, { workflow, status, branch, event, limit = 20 } = {}) {
@@ -373,7 +396,7 @@ export function api(env = {}, { fetchImpl = (...a) => globalThis.fetch(...a), no
       const out = await fn();
       let kept = rule.audit === 'issue' ? 'kept' : 'off';
       if (rule.audit === 'issue') {
-        try { const x = await AU.record(ctx.api, lab, { actor: me.login, action: auditAction ?? actions[0], target: lab, detail: { ...detail, via: ctx.via === 'mcp' ? 'mcp' : 'api' } }); if (x?.why) kept = `kept: ${x.why}`; }
+        try { const x = await AU.record(ctx.api, lab, { actor: me.login, action: auditAction ?? actions[0], target: lab, detail: { ...detail, via: ctx.channel ?? (ctx.via === 'mcp' ? 'mcp' : 'api') } }); if (x?.why) kept = `kept: ${x.why}`; }
         catch (e) { kept = `監査ログに書けませんでした（${e.message}）。した操作はそのままです`; }
       }
       return { summary: done ? done(out) : 'しました', result: result ? result(out) : (out && typeof out === 'object' ? out : { ok: true }), audit: kept };
@@ -407,7 +430,7 @@ export function api(env = {}, { fetchImpl = (...a) => globalThis.fetch(...a), no
       }, { audit: `setup.${c.key}`, done: (r) => r.message, result: (r) => ({ key: c.key, ...r, steps }) });
     },
     async runDetail(ctx, id) {
-      const run = await ctx.api.call('GET', `/repos/${lab}/actions/runs/${id}`).catch((e) => { if (e.status === 404) throw no(`run ${id} はありません`, 404); throw e; });
+      const run = await H.run(ctx, id);
       const jobs = await ctx.api.jobs(lab, id), notes = [];
       for (const j of jobs.filter((x) => FAILED.has(x.conclusion)).slice(0, 5)) {
         try { for (const x of (await ctx.api.annotations(lab, j.id)) ?? []) notes.push({ job: j.name, level: x.annotation_level, title: x.title ?? '', message: clip(x.message, 800), path: x.path, line: x.start_line }); } catch { /* none to read for that job */ }
@@ -651,7 +674,7 @@ ${deviceSteps(origin).map((x, i) => `${i + 1}. ${x}`).join('\n')}
 
 ${TOOLS.map((t) => `- ${t.name}${t.readOnly ? '' : ' (write)'}: ${t.description}`).join('\n')}
 
-Start with lab_status. To fix a failure: runs_list → run_detail → run_log (grep) → file_read → file_write (with the sha read) → unit_run → run_detail. When a tool says confirmation is needed, ask the person, then send confirm: true.
+Start with lab_status. To fix a failure: runs_list → run_detail → run_log (grep) → file_read → file_write (with the sha read) → unit_run → run_detail. To run Actions: workflow_run or unit_run → run_detail until completed → run_log / artifacts_list (unit_run job go's .mcaddon is its artifact); run_cancel and run_rerun act on a run by its id. When a tool says confirmation is needed, ask the person, then send confirm: true.
 `;
   /** a read-only tool's arguments from a query string (GET /api/<tool>?k=v), typed by its schema */
   const fromQuery = (t, q) => Object.fromEntries([...q].map(([k, v]) => { const type = t.input.properties?.[k]?.type; if (type === 'boolean') return [k, v === 'true' ? true : v === 'false' ? false : v]; if (type === 'object' || type === 'array') { try { return [k, JSON.parse(v)]; } catch { return [k, v]; } } return [k, v]; }));
@@ -679,6 +702,9 @@ Start with lab_status. To fix a failure: runs_list → run_detail → run_log (g
       const text = req.method === 'GET' ? '' : await read(req);
       if (text === null) return reply(413, path === '/mcp' ? err(null, -32600, 'Request too large') : { ok: false, error: '大きすぎます' });
       const ctx = context(w, origin);
+      // (the way the call came — MCP or the plain API — for the audit log: a device sign-in's token is MCP's kind of token, yet its
+      // calls come over /api)
+      ctx.channel = path === '/mcp' ? 'mcp' : 'api';
       if (path === '/mcp') {
         let msg; try { msg = JSON.parse(text); } catch { return reply(400, err(null, -32700, 'Parse error')); }
         const batch = Array.isArray(msg), list = batch ? msg : [msg];
