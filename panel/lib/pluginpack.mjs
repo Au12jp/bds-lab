@@ -3,7 +3,7 @@
 // skill that tells the AI how to work the lab with it. Made for one lab's address, in the browser (the 「準備」 tab's button)
 // or in Node (common/claude-plugin.mjs) alike: pure, no compression (a few small text files), names in UTF-8.
 export const PLUGIN_NAME = 'bds-lab';
-export const PLUGIN_VERSION = '1.1.0';
+export const PLUGIN_VERSION = '1.2.0';
 
 /** the plugin's files for one lab (pure) → { path: text }. mcpUrl: https://…/mcp; lab: owner/repo; panelUrl: the panel */
 export function pluginFiles({ mcpUrl, lab, panelUrl = '' } = {}) {
@@ -42,9 +42,18 @@ The bds-lab tools act on ${lab} as the person who connected them: GitHub's permi
 3. \`run_log\` with \`grep\` (e.g. \`error|fail|expected\`) → the lines that matter, numbered.
 4. \`file_read\` the files involved → keep the \`sha\` it gives.
 5. \`file_write\` the whole new text with that \`sha\` (never write blind: a file that exists needs its sha, so nobody's change is lost). One focused change per commit, a clear message.
-6. Prove it: \`unit_run\` (job \`test\`) for a unit, or \`workflow_run\` for another workflow → \`run_detail\` until it is green. Then \`unit_run\` job \`go\` builds the .mcaddon (\`releases_list\`).
+6. Prove it: \`unit_run\` (job \`test\`) for a unit, or \`workflow_run\` for another workflow → \`run_detail\` until it is green. Then \`unit_run\` job \`go\` builds the .mcaddon: it is the run's artifact \`unit-<name>\`, and \`artifacts_list\` with that run's id gives the link to download it.
 
 Never weaken a test to make it pass: fix the addon.
+
+## Run and watch Actions
+
+- \`workflow_run\` (\`workflow_get\` first shows its inputs) and \`unit_run\` start a run and return it: its id and its \`url\`.
+- \`run_detail\` until its status is completed (a short run ends in seconds, a real server's in minutes); \`run_log\` for what it printed, \`artifacts_list\` for what it kept.
+- \`run_cancel\` (ask first) asks GitHub to stop a run: it stops within a minute and its clean-up steps still run — \`run_detail\` until it says cancelled.
+- \`run_rerun\` runs a finished run again as its next attempt: a failed or cancelled one its failed jobs, a passed one all of it (\`failed_only\` decides it yourself). Not a run still going.
+- A push to the default branch starts \`verify.yml\` by itself: after a \`file_write\`, look for that run instead of starting another (a newer push cancels the older verify).
+- Tell the person what you ran, how it ended and why, with each run's \`url\`, so they can review it.
 
 ## Units (addons)
 
