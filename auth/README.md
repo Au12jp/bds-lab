@@ -140,6 +140,9 @@ AI に「`<このサービス>/llms.txt` を読んで、デバイスのサイン
 - **変えないもの**: `.github/`（CI と決まり。予約だけは `schedule_set` で検査してから）・`auto/policy.json`・`auto/STOP`・`.env`。
   ファイルは読んだときの sha の上にだけ書きます（盲目の上書きはしない）。
 - **どのラボ**: `LAB_SLUG` の 1 つだけ（auth-deploy.yml がそのリポジトリを入れます）。
+- **切れた・取り消されたトークン**: GitHub がその人のトークンを断ったら、道具の失敗ではなく HTTP の 401 と
+  `WWW-Authenticate: Bearer …, error="invalid_token"` で答えます（`/mcp` も `/api` も）。MCP のクライアントはそれで
+  更新トークンを使うか、つなぎ直します。
 - **Claude から**: パネルの「準備」→「🤖 AI から操作」の「Claude 用プラグイン（.plugin）」（MCP とスキル入り）を Claude に入れるか、
   Claude の「コネクタ」→「カスタムコネクタを追加」に `<このサービス>/mcp`。Claude Code: `claude mcp add --transport http bds-lab <このサービス>/mcp`。
   コマンドでプラグインを作るなら `node common/claude-plugin.mjs --url <このサービス> --lab <owner/repo>`。

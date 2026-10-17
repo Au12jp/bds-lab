@@ -565,11 +565,17 @@ export function api(env = {}, { fetchImpl = (...a) => globalThis.fetch(...a), no
     };
     return ctx;
   }
+  const REJECTED = 'GitHub がこのトークンを断りました（取り消されたか、期限が切れた）: つなぎ直してください — MCP は連携をやり直す、デバイスのサインインはもう一度、GitHub のトークンなら新しいものを';
   async function call(t, ctx, args) {
     const bad = checkArgs(t.input, args);
     if (bad) return { error: bad, status: 400 };
     try { const r = await t.run(ctx, args); return { summary: r.summary ?? '', result: r.result ?? null, raw: r.raw, audit: r.audit }; }
-    catch (e) { return { error: e instanceof GhError ? `${e.message}${e.status ? `（GitHub ${e.status}）` : ''}` : String(e?.message ?? e), status: e instanceof GhError ? (e.status || 502) : e?.status ?? 500 }; }
+    catch (e) {
+      // (GitHub refused the person's token itself — revoked, run out: the client is told at the HTTP level, 401 with
+      // WWW-Authenticate, so an MCP client renews it or signs in again instead of reading a tool's error)
+      if (e instanceof GhError && e.status === 401) { ctx.rejected = true; return { error: REJECTED, status: 401 }; }
+      return { error: e instanceof GhError ? `${e.message}${e.status ? `（GitHub ${e.status}）` : ''}` : String(e?.message ?? e), status: e instanceof GhError ? (e.status || 502) : e?.status ?? 500 };
+    }
   }
   const jsonText = (x) => { const t = JSON.stringify(x, null, 1); return t.length > 120_000 ? `${t.slice(0, 120_000)}…` : t; };
   const content = (r) => (r.error ? { content: [{ type: 'text', text: `⛔ ${r.error}` }], isError: true }
@@ -668,7 +674,8 @@ Start with lab_status. To fix a failure: runs_list → run_detail → run_log (g
       if (path === '/mcp' && pv && !MCP_VERSIONS.includes(pv)) return reply(400, err(null, -32600, `Unsupported MCP-Protocol-Version: ${pv} (${MCP_VERSIONS.join(', ')})`));
       if (!lab) return reply(503, { error: 'lab', message: 'LAB_SLUG がありません: auth-deploy.yml でサービスを置き直してください' });
       const w = await who(req, origin);
-      if (w.error) return reply(401, { error: w.error === 'none' ? 'unauthorized' : 'invalid_token', message: 'Authorization: Bearer <トークン> が要ります（MCP の OAuth で受け取ったもの、または GitHub のトークン）' }, { 'www-authenticate': `Bearer realm="bds-lab", resource_metadata="${origin}/.well-known/oauth-protected-resource"${w.error === 'invalid' ? ', error="invalid_token"' : ''}` });
+      const challenge = (invalid) => ({ 'www-authenticate': `Bearer realm="bds-lab", resource_metadata="${origin}/.well-known/oauth-protected-resource"${invalid ? ', error="invalid_token"' : ''}` });
+      if (w.error) return reply(401, { error: w.error === 'none' ? 'unauthorized' : 'invalid_token', message: 'Authorization: Bearer <トークン> が要ります（MCP の OAuth で受け取ったもの、または GitHub のトークン）' }, challenge(w.error === 'invalid'));
       const text = req.method === 'GET' ? '' : await read(req);
       if (text === null) return reply(413, path === '/mcp' ? err(null, -32600, 'Request too large') : { ok: false, error: '大きすぎます' });
       const ctx = context(w, origin);
@@ -678,6 +685,7 @@ Start with lab_status. To fix a failure: runs_list → run_detail → run_log (g
         if (!list.length || list.length > 20) return reply(400, err(null, -32600, 'Invalid Request'));
         const out = [];
         for (const m of list) { const r = await rpc(m, ctx); if (r) out.push(r); }
+        if (ctx.rejected) return reply(401, { error: 'invalid_token', message: REJECTED }, challenge(true));
         return out.length ? reply(200, batch ? out : out[0]) : reply(202, null);
       }
       const t = BY[path.slice(5)];
@@ -685,6 +693,7 @@ Start with lab_status. To fix a failure: runs_list → run_detail → run_log (g
       let args = req.method === 'GET' ? fromQuery(t, url.searchParams) : {};
       if (text.trim()) { try { args = JSON.parse(text); } catch { return reply(400, { ok: false, error: '本文は JSON で' }); } }
       const r = await call(t, ctx, args);
+      if (ctx.rejected) return reply(401, { ok: false, error: r.error }, challenge(true));
       return r.error ? reply(r.status >= 400 && r.status < 600 ? r.status : 400, { ok: false, error: r.error }) : reply(200, { ok: true, summary: r.summary, result: r.result, ...(typeof r.raw === 'string' ? { text: r.raw } : {}), ...(r.audit ? { audit: r.audit } : {}) });
     } catch (e) { return reply(500, { error: 'internal', message: String(e?.message ?? e).slice(0, 200) }); }
   };

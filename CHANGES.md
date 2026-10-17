@@ -28,7 +28,8 @@
   待つ間のものは Durable Object（`worker.mjs` の `Store`、SQLite: 無料のプランでも）に封じたまま置く。置けないアカウントでは auth-deploy.yml が
   それなしで置く（注釈で言う。`/health` の `device`）。パネルの「🤖 AI から操作」にコピーできる頼み方、プラグインのスキルにも同じ手順（1.1.0）。
 - **終わらせる**（RFC 7009）: `POST /revoke` で AI が自分のトークンを終わらせると、その中の GitHub のトークンも GitHub で取り消す（更新トークンは 1 回替えて
-  その新しいトークンを。どんな値でも 200）。メタデータの `revocation_endpoint`、説明のページ・スキルにも。`audit_log` は、取っていないラボではそう言う。
+  その新しいトークンを。どんな値でも 200）。メタデータの `revocation_endpoint`、説明のページ・スキルにも。`audit_log` は、取っていないラボではそう言う。GitHub が断ったトークン（取り消し・期限切れ）は、道具の失敗でなく HTTP の 401 と
+  `WWW-Authenticate`（`error="invalid_token"`）で答える（MCP のクライアントが自分でつなぎ直す）。
 - **AI が自分で分かる**: `GET /`（説明のページ）・`GET /llms.txt`・`GET /openapi.json`（OpenAPI 3.1）。読むだけの道具は `GET /api/<道具>?引数=値` でも。
   知らない `MCP-Protocol-Version` は 400。長いログは末尾 400 KB（grep のときは 2 MB）だけを見て、行の番号は元のまま（Cloudflare の CPU 時間に収まる）。
 - **置く前に Cloudflare の実行環境で試す**: `tests/api-workerd.mjs` が `wrangler dev`（workerd）で置くものそのままを偽の GitHub に対して動かす（Durable Object・

@@ -601,7 +601,10 @@ await t('the device sign-in (RFC 8628): a code for an AI with no browser; pendin
   eq((await rv({ token: rf.json.access_token, client_id: d.client_id })).status, 200);
   ok(G.revoked.length === n0 + 1 && !G.revoked.some((x) => /bdsl_/.test(String(x))), 'GitHub\'s own token revoked on GitHub');
   const after = await HD(`${AUTH}/api/lab_status`, { headers: { authorization: `Bearer ${rf.json.access_token}` } });
-  ok(after.status === 401, `the API refuses the revoked token: ${after.status} ${after.text.slice(0, 200)}`);
+  ok(after.status === 401 && /error="invalid_token"/.test(after.headers.get('www-authenticate') ?? '') && /つなぎ直して/.test(after.json.error), `the API refuses the revoked token, at the HTTP level: ${after.status} ${after.text.slice(0, 200)}`);
+  // (MCP too: 401 with the challenge, so the client renews or signs in again — not a tool's error inside a 200)
+  const mcpAfter = await HD(`${AUTH}/mcp`, jsonPost({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'lab_status', arguments: {} } }, { authorization: `Bearer ${rf.json.access_token}` }));
+  ok(mcpAfter.status === 401 && /error="invalid_token"/.test(mcpAfter.headers.get('www-authenticate') ?? '') && /resource_metadata=/.test(mcpAfter.headers.get('www-authenticate') ?? ''), `MCP: ${mcpAfter.status} ${mcpAfter.text.slice(0, 200)}`);
   eq((await rv({ token: rf.json.refresh_token })).status, 200, 'the refresh token (no client named: the token is enough)');
   eq(G.revoked.length, n0 + 2, 'traded once, that new token revoked');
   eq((await HD(`${AUTH}/token`, form({ grant_type: 'refresh_token', refresh_token: rf.json.refresh_token, client_id: d.client_id }))).json.error, 'invalid_grant', 'the revoked refresh token renews nothing');
