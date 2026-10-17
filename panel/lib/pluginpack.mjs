@@ -70,7 +70,7 @@ If no bds-lab tool is available (the connector was not added, or it did not conn
 3. Every \`interval\` seconds \`POST ${base}/token\` (form: \`grant_type=urn:ietf:params:oauth:grant-type:device_code\`, \`device_code\`, \`client_id\`): \`authorization_pending\` → wait; \`access_token\` → connected (handed out once); \`access_denied\` / \`expired_token\` → ask the person and start again. The code lasts 10 minutes.
 4. Call \`POST ${base}/api/<tool>\` with \`Authorization: Bearer <access_token>\` and the tool's arguments as a JSON body (read-only tools also \`GET ${base}/api/<tool>?arg=value\`). \`GET ${base}/api\` lists the tools with their input schemas; \`${base}/openapi.json\` and \`${base}/llms.txt\` describe them.
 
-Never show the token. It lasts 8 hours; \`POST ${base}/token\` with \`grant_type=refresh_token\`, \`refresh_token\` and \`client_id\` renews it.
+Never show the token. It lasts 8 hours; \`POST ${base}/token\` with \`grant_type=refresh_token\`, \`refresh_token\` and \`client_id\` renews it. When the person's work is done (or they ask you to let go), end it: \`POST ${base}/revoke\` with \`token=<access_token>\`, then \`token=<refresh_token>\` — GitHub's token is revoked, nothing of it stays with you.
 
 ## Never
 

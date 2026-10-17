@@ -28,7 +28,8 @@
 //   POST /device/code {client_name}       → { device_code, user_code, verification_uri(_complete), interval, client_id }
 //   GET /device?code=XXXX-XXXX → the consent page (the code to compare) → POST /device → GitHub → /callback → 「つながりました」
 //   POST /token grant_type=urn:ietf:params:oauth:grant-type:device_code → authorization_pending … then the tokens, once
-export const VERSION = '3';
+// and the end of it, for any AI client: POST /revoke token=<access or refresh token> (RFC 7009) → 200, the GitHub token gone
+export const VERSION = '4';
 /** what only the real GitHub can confirm (kept in this one place; the tests use a fake GitHub) */
 export const GITHUB = {
   // (GitHub's OAuth web flow takes PKCE: code_challenge S256 at /authorize, code_verifier at /access_token — 要実測)
@@ -260,16 +261,19 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
     if (t.ok) return reply(200, t.tokens, cors);
     return t.error === 'github' ? reply(502, { error: 'github' }, cors) : reply(401, { error: 'refresh' }, cors);
   }
+  /** a GitHub user token revoked on GitHub (the App's client id and secret) → true when it is gone (404 / 422: GitHub knows no
+   *  such token any more — gone already, which is what was asked), false when GitHub could not be asked */
+  async function revokeGh(at) {
+    try {
+      const r = await fetchImpl(`${c.api}${GITHUB.revoke(c.clientId)}`, { method: 'DELETE', headers: { accept: 'application/vnd.github+json', authorization: `Basic ${btoa(`${c.clientId}:${c.secret}`)}`, 'content-type': 'application/json', 'x-github-api-version': GITHUB.apiVersion, 'user-agent': UA }, body: JSON.stringify({ access_token: at }) });
+      await r.text().catch(() => '');
+      return r.ok || r.status === 404 || r.status === 422;
+    } catch { return false; }
+  }
   async function logout(body, cors) {
     const at = body?.access_token;
     if (typeof at !== 'string' || !TOKEN.test(at)) return reply(400, { error: 'body' }, cors);
-    let r;
-    try {
-      r = await fetchImpl(`${c.api}${GITHUB.revoke(c.clientId)}`, { method: 'DELETE', headers: { accept: 'application/vnd.github+json', authorization: `Basic ${btoa(`${c.clientId}:${c.secret}`)}`, 'content-type': 'application/json', 'x-github-api-version': GITHUB.apiVersion, 'user-agent': UA }, body: JSON.stringify({ access_token: at }) });
-      await r.text().catch(() => '');
-    } catch { return reply(502, { error: 'github' }, cors); }
-    // (404 / 422: GitHub knows no such token any more — gone already, which is what was asked)
-    return r.ok || r.status === 404 || r.status === 422 ? reply(204, null, cors) : reply(502, { error: 'github' }, cors);
+    return (await revokeGh(at)) ? reply(204, null, cors) : reply(502, { error: 'github' }, cors);
   }
 
   // ---- MCP's sign-in: AI clients to the lab's API (api.mjs) ----
@@ -280,7 +284,7 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
   const consentCookie = (v, age) => `${CONSENT}=${v}; Max-Age=${age}; Path=/; Secure; HttpOnly; SameSite=Strict`;
   const consentOf = (req) => { for (const part of String(req.headers.get('cookie') ?? '').split(';')) { const i = part.indexOf('='); if (i > 0 && part.slice(0, i).trim() === CONSENT) return part.slice(i + 1).trim(); } return null; };
   const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
-  const asMeta = (o) => ({ issuer: o, authorization_endpoint: `${o}/authorize`, token_endpoint: `${o}/token`, registration_endpoint: `${o}/register`, ...(store ? { device_authorization_endpoint: `${o}/device/code` } : {}), response_types_supported: ['code'], grant_types_supported: ['authorization_code', 'refresh_token', ...(store ? [DEVICE_GRANT] : [])], code_challenge_methods_supported: ['S256'], token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'], scopes_supported: ['lab'], service_documentation: c.panels[0]?.href ?? o });
+  const asMeta = (o) => ({ issuer: o, authorization_endpoint: `${o}/authorize`, token_endpoint: `${o}/token`, registration_endpoint: `${o}/register`, ...(store ? { device_authorization_endpoint: `${o}/device/code` } : {}), response_types_supported: ['code'], grant_types_supported: ['authorization_code', 'refresh_token', ...(store ? [DEVICE_GRANT] : [])], code_challenge_methods_supported: ['S256'], token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'], revocation_endpoint: `${o}/revoke`, revocation_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'], scopes_supported: ['lab'], service_documentation: c.panels[0]?.href ?? o });
   const prMeta = (o) => ({ resource: `${o}/mcp`, authorization_servers: [o], scopes_supported: ['lab'], bearer_methods_supported: ['header'], resource_name: `bds-lab${c.lab ? `（${c.lab}）` : ''}`, resource_documentation: c.panels[0]?.href ?? o });
   /** a page of this service's own (the consent; or why not): text escaped, a style of its own nonce, forms only where they go */
   function page(status, title, body, { formTo = [], cookies = [] } = {}) {
@@ -400,16 +404,23 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
     if (!/json/i.test(ct)) return Object.fromEntries(new URLSearchParams(text));
     try { const j = JSON.parse(text); return j && typeof j === 'object' && !Array.isArray(j) ? Object.fromEntries(Object.entries(j).map(([k, v]) => [k, String(v)])) : null; } catch { return null; }
   }
+  /** the client a request to /token or /revoke names (client_id in the form, or HTTP Basic), its secret checked when it has
+   *  one → { client } | { none: true } (named no client) | { bad: true } */
+  async function clientOf(req, p) {
+    let cid = p.client_id, secret = p.client_secret;
+    const basic = /^Basic\s+([A-Za-z0-9+/=]{1,8000})$/i.exec(req.headers.get('authorization') ?? '');
+    if (basic) { try { const [a, b = ''] = atob(basic[1]).split(':'); cid = decodeURIComponent(a); secret = decodeURIComponent(b); } catch { return { bad: true }; } }
+    if (cid === undefined) return { none: true };
+    const client = await openClient(cid);
+    if (!client || (client.method !== 'none' && !(await macOk('client-secret', client.id, String(secret ?? ''))))) return { bad: true };
+    return { client };
+  }
   async function token(req, url) {
     const bad = (error, status = 400) => reply(status, { error }, OPEN);
     const p = await params(req);
     if (!p) return bad('invalid_request');
-    let cid = p.client_id, secret = p.client_secret;
-    const basic = /^Basic\s+([A-Za-z0-9+/=]{1,8000})$/i.exec(req.headers.get('authorization') ?? '');
-    if (basic) { try { const [a, b = ''] = atob(basic[1]).split(':'); cid = decodeURIComponent(a); secret = decodeURIComponent(b); } catch { return bad('invalid_client', 401); } }
-    const client = await openClient(cid);
+    const { client } = await clientOf(req, p);
     if (!client) return bad('invalid_client', 401);
-    if (client.method !== 'none' && !(await macOk('client-secret', client.id, String(secret ?? '')))) return bad('invalid_client', 401);
     const chash = await sha(client.id);
     if (p.grant_type === 'authorization_code') {
       const code = await box.open('code', p.code);
@@ -436,6 +447,24 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
       return sealed ? issue(sealed.gh, chash, sealed.sc, url) : bad('expired_token');
     }
     return bad('unsupported_grant_type');
+  }
+  /** POST /revoke (RFC 7009): this service's access or refresh token → its GitHub token revoked on GitHub (a refresh token is
+   *  traded once and the new access token revoked: the pair keeps no live token on GitHub — revoke the access token too).
+   *  200 whatever the token was (nothing told to one who tries tokens); a token named with a client it was not issued to:
+   *  refused; GitHub not reachable: 503, to be tried again */
+  async function revoke(req) {
+    const p = await params(req);
+    if (!p || !p.token) return reply(400, { error: 'invalid_request' }, OPEN);
+    const who = await clientOf(req, p);
+    if (who.bad) return reply(401, { error: 'invalid_client' }, OPEN);
+    const kind = p.token.startsWith(SEALED.refresh) ? 'refresh' : p.token.startsWith(SEALED.access) ? 'access' : null;
+    const t = kind ? await box.open(kind, p.token) : null;
+    if (!t || !(t.exp > now())) return reply(200, {}, OPEN);
+    if (who.client && t.ch !== (await sha(who.client.id))) return reply(400, { error: 'unauthorized_client' }, OPEN);
+    let at = kind === 'access' ? t.gh : null;
+    if (kind === 'refresh') { const x = await exchange({ grant_type: 'refresh_token', refresh_token: t.gh }); if (x.ok) at = x.tokens.access_token; else if (x.error === 'github') return reply(503, { error: 'temporarily_unavailable' }, OPEN); }
+    if (at && !(await revokeGh(at))) return reply(503, { error: 'temporarily_unavailable' }, OPEN);
+    return reply(200, {}, OPEN);
   }
   // ---- the device sign-in (RFC 8628) ----
   const cleanName = (x) => String(x ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80);
@@ -520,7 +549,7 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
     await store.put(`d:${s.d}`, { ...rec, st: 'ok', gh: await box.seal('code', { gh: t.tokens, ch: rec.ch, sc: rec.sc, exp: now() + DEVICE_TTL }) }, DEVICE_TTL);
     return say(200, '✅ AI がつながりました', `<p><span class="who">「${esc(rec.n)}」</span>が ${esc(c.lab ?? 'このラボ')} を操作できるようになりました（あなたの GitHub のアカウントで。ラボの役割の決まり・確認・監査ログのとおりに）。</p><p>この画面は閉じて、AI の画面に戻ってください。</p><p class="muted">やめさせるには: GitHub の Settings → Applications → Authorized GitHub Apps で、このラボの App を取り消します。</p>`);
   }
-  const MCP_ROUTES = { '/.well-known/oauth-authorization-server': 'GET', '/.well-known/oauth-protected-resource': 'GET', '/.well-known/oauth-protected-resource/mcp': 'GET', '/register': 'POST', '/authorize': 'GET POST', '/token': 'POST', '/device/code': 'POST', '/device': 'GET POST' };
+  const MCP_ROUTES = { '/.well-known/oauth-authorization-server': 'GET', '/.well-known/oauth-protected-resource': 'GET', '/.well-known/oauth-protected-resource/mcp': 'GET', '/register': 'POST', '/authorize': 'GET POST', '/token': 'POST', '/revoke': 'POST', '/device/code': 'POST', '/device': 'GET POST' };
   async function mcpRoute(req, url, path) {
     if (req.method === 'OPTIONS') return path === '/authorize' || path === '/device' ? reply(405, { error: 'method' }) : reply(204, null, OPEN);
     if (!MCP_ROUTES[path].split(' ').includes(req.method)) return reply(405, { error: 'method' }, { ...OPEN, allow: MCP_ROUTES[path].replace(' ', ', ') });
@@ -529,6 +558,7 @@ export function handler(env, { fetchImpl = (...a) => globalThis.fetch(...a), now
     if (c.missing.length) return path === '/authorize' || path === '/device' ? stop(503, 'サインインのサービスの設定が足りません（パネルの「準備」）。') : reply(503, { error: 'temporarily_unavailable' }, OPEN);
     if (path === '/register') return register(req);
     if (path === '/token') return token(req, url);
+    if (path === '/revoke') return revoke(req);
     if (path === '/device/code') return deviceCode(req, url);
     if (path === '/device') return req.method === 'GET' ? deviceAsk(url) : deviceYes(req, url);
     return req.method === 'GET' ? authorizeAsk(url) : authorizeYes(req, url);

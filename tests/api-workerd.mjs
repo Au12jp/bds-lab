@@ -35,7 +35,7 @@ const freePort = () => new Promise((r) => { const s = net.createServer().listen(
 const CLIENT_ID = 'Iv23liFAKECLIENT', CLIENT_SECRET = 'fake-client-secret-0123456789abcdef', STATE_SECRET = 'fake-state-secret-0123456789abcdef-0123456789';
 const SELF = 'https://bds-lab-auth.test', OWNER = 'ghp_fake_owner_token_0123456789abcd';
 const sk = crypto.randomBytes(32), pk = SEAL.x25519Public(sk);
-const G = { tokens: { [OWNER]: 'o' }, codes: new Map(), files: new Map(), secrets: new Map(), dispatched: [], blobAuth: [], agents: new Set(), n: 0 };
+const G = { tokens: { [OWNER]: 'o' }, codes: new Map(), refreshes: new Set(), files: new Map(), secrets: new Map(), dispatched: [], blobAuth: [], revoked: [], agents: new Set(), n: 0 };
 const put = (p, text) => G.files.set(p, { bytes: Buffer.from(text), sha: crypto.createHash('sha1').update(`${p}\n${text}\n${Math.random()}`).digest('hex') });
 put('bds/addons/coins/bp/manifest.json', JSON.stringify({ format_version: 2, header: { name: 'Coins', version: [1, 2, 0] }, modules: [] }));
 put('bds/addons/coins/tests.txt', '## one\nsay hi\n~ hi\n## two\nsay yo\n~ yo\n');
@@ -57,13 +57,19 @@ const fake = http.createServer(async (req, res) => {
     const q = new URLSearchParams(body), ch = G.codes.get(q.get('code'));
     G.codes.delete(q.get('code'));
     if (q.get('client_id') !== CLIENT_ID || q.get('client_secret') !== CLIENT_SECRET) return send(200, { error: 'incorrect_client_credentials' });
-    if (!ch || ch !== sha256(q.get('code_verifier') ?? '')) return send(200, { error: 'bad_verification_code' });
-    G.n++; const tk = `ghu_AccessToken${G.n}xxxxxxxxxxxxxxxxxx`; G.tokens[tk] = 'o';
-    return send(200, { access_token: tk, expires_in: 28800, refresh_token: `ghr_RefreshToken${G.n}xxxxxxxxxxxxxxx`, refresh_token_expires_in: 15811200, token_type: 'bearer', scope: '' });
+    if (q.get('grant_type') === 'refresh_token') { if (!G.refreshes.delete(q.get('refresh_token'))) return send(200, { error: 'bad_refresh_token' }); }
+    else if (!ch || ch !== sha256(q.get('code_verifier') ?? '')) return send(200, { error: 'bad_verification_code' });
+    G.n++; const tk = `ghu_AccessToken${G.n}xxxxxxxxxxxxxxxxxx`, rt = `ghr_RefreshToken${G.n}xxxxxxxxxxxxxxx`; G.tokens[tk] = 'o'; G.refreshes.add(rt);
+    return send(200, { access_token: tk, expires_in: 28800, refresh_token: rt, refresh_token_expires_in: 15811200, token_type: 'bearer', scope: '' });
   }
   if (p.startsWith('/blob/')) { G.blobAuth.push(req.headers.authorization ?? null); return send(200, '2026-10-17T00:00:01.1234567Z setting up\n2026-10-17T00:00:02.0000000Z \x1b[31mError: boom\x1b[0m\n2026-10-17T00:00:03.0000000Z after\n'); }
   if (p === '/pages/lab/config.json') return send(200, { authUrl: SELF, appSlug: 'lab-o', appClientId: CLIENT_ID });
   if (!p.startsWith('/api/')) return send(404, { message: 'Not Found' });
+  if (m === 'DELETE' && p === `/api/applications/${CLIENT_ID}/token`) {
+    if (req.headers.authorization !== `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')}`) return send(401, { message: 'Requires authentication' });
+    const had = Boolean(G.tokens[jb?.access_token]); delete G.tokens[jb?.access_token]; G.revoked.push(jb?.access_token);
+    return send(had ? 204 : 404, had ? null : { message: 'Not Found' });
+  }
   const who = G.tokens[String(req.headers.authorization ?? '').replace(/^Bearer /, '')];
   if (!who) return send(401, { message: 'Bad credentials' });
   G.agents.add(String(req.headers['user-agent'] ?? ''));
@@ -207,6 +213,11 @@ await t('the device sign-in through the Durable Object: a code, the page, GitHub
   ok((await poll()).error === 'expired_token', 'the tokens are handed out once');
   const s = await call('lab_status', {}, { authorization: `Bearer ${tk.access_token}` });
   ok(s.status === 200 && s.j.result.you.via === 'mcp', show(s.j));
+  // the end of it (RFC 7009): GitHub's token revoked there, the API then refuses the token
+  const rv = async (token) => (await fetch(`${B}/revoke`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token, client_id: d.client_id }) })).status;
+  ok((await rv(tk.access_token)) === 200 && G.revoked.length === 1 && G.revoked[0].startsWith('ghu_'), `revoked on GitHub: ${G.revoked}`);
+  ok((await call('lab_status', {}, { authorization: `Bearer ${tk.access_token}` })).status === 401, 'the revoked token refused');
+  ok((await rv(tk.refresh_token)) === 200 && G.revoked.length === 2, 'the refresh token: traded once, that token revoked');
 });
 
 await stop(); fake.close();

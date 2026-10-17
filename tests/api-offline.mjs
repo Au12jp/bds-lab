@@ -28,7 +28,7 @@ const TOKENS = { ghp_fake_owner_token_0123456789abcd: 'o', ghp_fake_writer_token
 const sk = crypto.randomBytes(32), pk = SEAL.x25519Public(sk);
 const gitSha = (s) => crypto.createHash('sha1').update(s).digest('hex');
 const G = {
-  codes: new Map(), refreshes: new Set(), n: 0, seen: [], blobAuth: [], graphql: 0, dispatched: [], reruns: [], secrets: new Map(), writes: [],
+  codes: new Map(), refreshes: new Set(), revoked: [], n: 0, seen: [], blobAuth: [], graphql: 0, dispatched: [], reruns: [], secrets: new Map(), writes: [],
   files: new Map(), runs: [], jobs: {}, logs: {}, notes: {}, issues: [], labels: new Set(), users: new Set(['o', 'w', 'r', 'newbie']),
   collaborators: [{ login: 'o', permissions: { admin: true, push: true, pull: true } }, { login: 'w', permissions: { push: true, pull: true } }, { login: 'r', permissions: { pull: true } }], invitations: [],
   vars: new Map(Object.entries({ APP_ID: '5', APP_SLUG: 'lab-o', APP_CLIENT_ID: CLIENT_ID, LAB_AUTH_URL: AUTH, APP_CALLBACK_URL: `${AUTH}/callback`, LAB_HOSTS: 'x/host' })),
@@ -60,6 +60,13 @@ const fake = http.createServer(async (req, res) => {
   const send = (status, j, headers = {}) => { res.writeHead(status, { 'content-type': 'application/json', ...headers }); res.end(j === null || j === undefined ? '' : typeof j === 'string' ? j : JSON.stringify(j)); };
   let jb = null; try { jb = body && p.startsWith('/api/') ? JSON.parse(body) : null; } catch { /* not JSON */ }
   if (p.startsWith('/api/') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(m)) { const bad = fakeCheck(m, p.slice(4) + u.search, jb); if (bad) return send(422, { message: bad.message }); }
+  // a user token revoked by the App (the sign-in service's /revoke and /logout): Basic client_id:client_secret
+  if (m === 'DELETE' && p === `/api/applications/${CLIENT_ID}/token`) {
+    if (req.headers.authorization !== `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')}`) return send(401, { message: 'Requires authentication' });
+    const at = jb?.access_token; G.revoked.push(at);
+    if (!TOKENS[at]) return send(404, { message: 'Not Found' });
+    delete TOKENS[at]; return send(204, null);
+  }
   // web: the App's sign-in
   if (m === 'GET' && p === '/web/login/oauth/authorize') {
     const q = u.searchParams, back = new URL(q.get('redirect_uri')), code = `code${crypto.randomBytes(6).toString('hex')}`;
@@ -481,6 +488,11 @@ await t('members, issues, schedule, audit: the owner and oneself never changed; 
   const acts = log.meta.entries.map((e) => e.action);
   for (const a of ['dispatch', 'secrets.put', 'secrets.delete', 'variables', 'members', 'issues', 'run.rerun', 'run.cancel']) ok(acts.includes(a), `audit has ${a}: ${acts.join(' ')}`);
   ok(log.meta.entries.every((e) => e.actor === 'o' && e.detail.via === 'mcp'), 'by the person, via mcp');
+  // (a lab that keeps no log says so — not just "nothing" — and still shows what was kept before)
+  put('.github/bds-lab-panel.json', JSON.stringify({ audit: 'off' }));
+  const offLog = await tool('audit_log', { limit: 3 });
+  ok(offLog.meta.mode === 'off' && /監査ログを取っていません/.test(offLog.text) && /前に取った記録/.test(offLog.text), offLog.text);
+  G.files.delete('.github/bds-lab-panel.json');
 });
 
 await t('the role policy and GitHub: a policy that allows a role only to start workflows refuses secrets (in its words, nothing sent); a reader may start nothing; a writer may not change members (GitHub\'s admin); plain HTTP with a GitHub token: 401 without, 200 with, 404 for no such tool, its errors with their status', async () => {
@@ -578,6 +590,23 @@ await t('the device sign-in (RFC 8628): a code for an AI with no browser; pendin
   ok(use.status === 200 && use.json.result.you.login === 'o', `the AI works the lab: ${use.text.slice(0, 200)}`);
   const rf = await HD(`${AUTH}/token`, form({ grant_type: 'refresh_token', refresh_token: got.json.refresh_token, client_id: d.client_id }));
   ok(rf.status === 200 && /^bdsl_at\./.test(rf.json.access_token), `refresh with the device's client id: ${rf.text}`);
+  // the end of it (RFC 7009): the access token revoked → GitHub's token gone, the API refuses it; the refresh token revoked →
+  // traded once and that new token revoked, nothing left to renew; a bad token, any text, one gone already: 200 all the same
+  ok((await HD(`${AUTH}/.well-known/oauth-authorization-server`)).json.revocation_endpoint === `${AUTH}/revoke`, 'in the metadata');
+  const rv = (body) => HD(`${AUTH}/revoke`, form(body)), n0 = G.revoked.length;
+  const elsewhere = await start('elsewhere');
+  eq((await rv({ token: got.json.access_token, client_id: elsewhere.client_id })).json.error, 'unauthorized_client', 'named with a client it was not issued to');
+  eq((await rv({ token: got.json.access_token, client_id: 'bdsc1.bad.sig' })).status, 401, 'a client that is not one');
+  eq(G.revoked.length, n0, 'refused: nothing revoked');
+  eq((await rv({ token: rf.json.access_token, client_id: d.client_id })).status, 200);
+  ok(G.revoked.length === n0 + 1 && !G.revoked.some((x) => /bdsl_/.test(String(x))), 'GitHub\'s own token revoked on GitHub');
+  const after = await HD(`${AUTH}/api/lab_status`, { headers: { authorization: `Bearer ${rf.json.access_token}` } });
+  ok(after.status === 401, `the API refuses the revoked token: ${after.status} ${after.text.slice(0, 200)}`);
+  eq((await rv({ token: rf.json.refresh_token })).status, 200, 'the refresh token (no client named: the token is enough)');
+  eq(G.revoked.length, n0 + 2, 'traded once, that new token revoked');
+  eq((await HD(`${AUTH}/token`, form({ grant_type: 'refresh_token', refresh_token: rf.json.refresh_token, client_id: d.client_id }))).json.error, 'invalid_grant', 'the revoked refresh token renews nothing');
+  eq([(await rv({ token: 'bdsl_at.nonsense' })).status, (await rv({ token: 'whatever' })).status, (await rv({ token: rf.json.access_token })).status], [200, 200, 200], 'nothing told: a bad token, any text, one gone already');
+  eq((await rv({})).status, 400, 'no token');
   // said no on this service's page: the AI hears access_denied, once
   const d2 = await start('another');
   const ask2 = await HD(`${AUTH}/device?code=${d2.user_code}`), n2 = /__Host-bdslab_consent=([^;]+)/.exec(ask2.cookies.join('\n'))[1];

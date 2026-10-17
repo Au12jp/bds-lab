@@ -114,6 +114,7 @@ Docker なしなら `node auth/node.mjs`（同じ env。`HOST` は既定 127.0.0
 | `POST /register` | 動的なクライアント登録（RFC 7591）: 戻る先は https、この機械の http、アプリ独自のスキームだけ。登録は署名した値（保存しない） |
 | `GET /authorize` → `POST /authorize` | このサービス自身の同意の画面（クライアントの名前と戻る先を見せる。cookie に結び付けた CSRF の値）→ GitHub App のサインイン |
 | `POST /token` | `authorization_code`（PKCE S256 必須）・`refresh_token`・`urn:ietf:params:oauth:grant-type:device_code`。トークンは GitHub のトークンを封じた値（AES-GCM、鍵は STATE_SECRET から） |
+| `POST /revoke` | トークンを終わらせる（RFC 7009: `token=<アクセストークンか更新トークン>`）→ 200。その中の GitHub のトークンを GitHub で取り消す（更新トークンは 1 回替えて、その新しいトークンを取り消す: 両方送ると何も残らない）。どんな値でも 200（試す人に何も教えない）。ほかのクライアントの名前で送ったものは断る |
 | `POST /device/code` → `GET /device` → `POST /device` | **デバイスのサインイン**（RFC 8628: コードでつなぐ）: AI がコードを受け取り、人に `/device?code=XXXX-XXXX` のリンクを渡す → 人がこのサービスの画面で AI の名前とコードを確かめて「許可して GitHub へ」→ GitHub の「Authorize」→ AI が `/token` を 5 秒ごとに聞いてトークンを 1 回だけ受け取る |
 
 ### コードでつなぐ（どの AI でも: デバイスのサインイン）
@@ -126,6 +127,7 @@ AI に「`<このサービス>/llms.txt` を読んで、デバイスのサイン
 2. 人: そのリンクを開き、AI の名前とコード（AI の画面と同じか）を確かめて「許可して GitHub へ」→ GitHub の「Authorize」。「やめる」も GitHub での取りやめも AI に `access_denied` で伝わります。
 3. AI: `POST /token`（`grant_type=urn:ietf:params:oauth:grant-type:device_code`・`device_code`・`client_id`）を `interval` ごとに → 許されるまで `authorization_pending`、許されたら 1 回だけトークン（2 回目からは `expired_token`）。10 分で切れます。
 4. AI: `Authorization: Bearer <access_token>` で `/api/<道具>` か `/mcp`。8 時間で切れ、`refresh_token`（`grant_type=refresh_token`・`client_id`）で新しくなります。
+5. AI: 終わったら `POST /revoke`（`token=<access_token>`、つぎに `token=<refresh_token>`）。GitHub のトークンが取り消され、AI の手元に使えるものは残りません。
 
 コードと受け渡しの間のトークン（封じたもの）は Durable Object（`worker.mjs` の `Store`: SQLite で、Cloudflare の無料のプランでも置けます）に
 10 分だけ置き、受け取られたら消します。Durable Object を置けないアカウントでは、auth-deploy.yml がそれなしで置き（注釈で言います）、

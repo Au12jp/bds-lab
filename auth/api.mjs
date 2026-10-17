@@ -275,7 +275,9 @@ function tools(H) {
         const rule = await ctx.rule();
         if (!P.can(rule.policy, rule.role, 'audit.read')) throw no(`監査ログを見ることは、あなたの役割（${roleName(rule.role)}）には許されていません（${P.POLICY_FILE}）`, 403);
         const log = await AU.readAudit(ctx.api, H.lab), xs = AU.filter(log.entries, { actor: a.actor, action: a.action }).slice().reverse().slice(0, a.limit ?? 50);
-        return { summary: xs.slice(0, 10).map(AU.line).join('\n') || '記録はありません', result: { mode: rule.audit, issue: log.issue, entries: xs } };
+        // (none kept: said why — a public lab keeps none unless its policy says audit: issue — not just "nothing")
+        const none = rule.audit === 'issue' ? '記録はありません' : `このラボは監査ログを取っていません（${P.POLICY_FILE} の audit が off、または公開のリポジトリの既定）${xs.length ? '。前に取った記録:' : ''}`;
+        return { summary: [xs.length && rule.audit === 'issue' ? '' : none, ...xs.slice(0, 10).map(AU.line)].filter(Boolean).join('\n'), result: { mode: rule.audit, issue: log.issue, entries: xs } };
       } },
     { name: 'issue_from_run', title: '失敗から Issue', action: 'issues', input: obj({ run_id: RUN_ID }, ['run_id']),
       description: 'Open (or find) the lab\'s Issue for a failed run: its summary, failed jobs and steps, annotations, link.',
@@ -593,11 +595,11 @@ export function api(env = {}, { fetchImpl = (...a) => globalThis.fetch(...a), no
   }
   const read = async (req) => { if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY) return null; const t = await req.text().catch(() => null); return t !== null && t.length <= MAX_BODY ? t : null; };
   const describe = (origin) => ({ name: 'bds-lab', lab, version: API_VERSION, mcp: `${origin}/mcp`, rest: `${origin}/api/<tool>`, openapi: `${origin}/openapi.json`, panel: panelUrl(),
-    auth: { oauth: `${origin}/.well-known/oauth-authorization-server`, ...(device ? { device: `${origin}/device/code` } : {}), bearer: 'Authorization: Bearer <an access token from the OAuth or device sign-in, or a GitHub token: ghu_ / ghp_ / github_pat_>' },
+    auth: { oauth: `${origin}/.well-known/oauth-authorization-server`, ...(device ? { device: `${origin}/device/code` } : {}), revoke: `${origin}/revoke`, bearer: 'Authorization: Bearer <an access token from the OAuth or device sign-in, or a GitHub token: ghu_ / ghp_ / github_pat_>' },
     tools: TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, action: t.action ?? null, readOnly: Boolean(t.readOnly), input: t.input })) });
 
   // ---- what a person or an AI finds at the service's own address: the page, the OpenAPI description, llms.txt ----
-  const deviceSteps = (o) => [`POST ${o}/device/code  (client_name=<your name>) → user_code, verification_uri_complete, device_code, client_id, interval`, 'Show the person verification_uri_complete: they press 「許可して GitHub へ」 and Authorize on GitHub', `Every interval seconds: POST ${o}/token  grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=…&client_id=…  → authorization_pending … then access_token (refresh_token: grant_type=refresh_token&client_id=…)`, `Authorization: Bearer <access_token> on POST ${o}/api/<tool> or ${o}/mcp`];
+  const deviceSteps = (o) => [`POST ${o}/device/code  (client_name=<your name>) → user_code, verification_uri_complete, device_code, client_id, interval`, 'Show the person verification_uri_complete: they press 「許可して GitHub へ」 and Authorize on GitHub', `Every interval seconds: POST ${o}/token  grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=…&client_id=…  → authorization_pending … then access_token (refresh_token: grant_type=refresh_token&client_id=…)`, `Authorization: Bearer <access_token> on POST ${o}/api/<tool> or ${o}/mcp`, `Done: POST ${o}/revoke  token=<access_token>, then token=<refresh_token>  → the GitHub token revoked (RFC 7009)`];
   function openapi(origin) {
     const ok = { type: 'object', properties: { ok: { type: 'boolean' }, summary: { type: 'string' }, result: {}, text: { type: 'string', description: 'a file\'s text or a log, as it is' }, audit: { type: 'string' } } };
     const fail = (d) => ({ description: d, content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, error: { type: 'string' } } } } } });
