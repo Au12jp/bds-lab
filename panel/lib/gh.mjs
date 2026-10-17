@@ -13,7 +13,11 @@ const unb64 = (s) => dec.decode(Uint8Array.from(atob(String(s).replace(/\s/g, ''
 export function explain(status, message = '') {
   if (status === 401) return 'トークンが受け付けられません（期限切れ・消された・打ち間違い）: 設定で入れ直してください';
   if (status === 403 && /rate limit/i.test(message)) return 'GitHub の回数の上限です: しばらく待ってから';
+  // (GitHub's 403 for a run it will not rerun now: no missing permission — the real GitHub's words, seen from the API for AI)
+  if (status === 403 && /already running/i.test(message)) return `その実行はまだ動いています: 終わってからやり直せます（${message}）`;
+  if (status === 403 && /cannot be retried/i.test(message)) return `やり直せない実行です — 落ちたジョブが無い、または古すぎる（${message}）`;
   if (status === 403) return `このトークンには、その操作の権限がありません（${message}）`;
+  if (status === 409 && /cannot cancel/i.test(message)) return `もう終わった実行は止められません（${message}）`;
   if (status === 404) return '見つからないか、このトークンでは見えません（リポジトリをトークンの対象に入れましたか）';
   if (status === 422) return `GitHub が受け付けません: ${message}`;
   return `GitHub: ${status} ${message}`;
