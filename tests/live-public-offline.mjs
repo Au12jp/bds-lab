@@ -10,6 +10,11 @@ let pass = 0, fail = 0;
 const t = async (name, fn) => { try { await fn(); pass++; console.log(`ok   ${name}`); } catch (e) { fail++; console.log(`FAIL ${name}\n     ${e.message}`); } };
 const eq = (a, b, m = '') => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${m} want ${JSON.stringify(b)} got ${JSON.stringify(a)}`); };
 const ok = (c, m) => { if (!c) throw new Error(m); };
+// the sealed part is random (AES-GCM, a new IV each time) and may hold any letters by chance ("47" about once in 70 runs):
+// clear text is looked for outside it, and the sealed bytes must not hold the text itself
+const SEAL = /lab-sealed:v1:([A-Za-z0-9_-]+)/g;
+const plain = (s) => String(s).replace(SEAL, 'lab-sealed:v1:…');
+const holds = (s, text) => [...String(s).matchAll(SEAL)].some((m) => Buffer.from(m[1], 'base64url').includes(Buffer.from(text)));
 
 const PUB = { APP_REPO_VISIBILITY: 'public', APP_CACHE_KEY: 'test-key-one' }, PRIV = { APP_REPO_VISIBILITY: 'private', APP_CACHE_KEY: 'test-key-one' };
 const OTHER = { APP_REPO_VISIBILITY: 'public', APP_CACHE_KEY: 'test-key-two' }, NOKEY = { APP_REPO_VISIBILITY: 'public' };
@@ -30,7 +35,7 @@ await t('public: the command is sealed in the issue, the head stays plain, the s
   await api.comment(1, body);
   const shown = posted.join('\n');
   ok(shown.startsWith('lab@123 lab-sealed:v1:'), shown);
-  ok(!/screen|tap|secret|cat/.test(shown.replace('lab-sealed:v1:', '').replace(/^lab@123 /, '')), 'no command in clear: ' + shown);
+  ok(!/screen|tap|secret|cat/.test(plain(shown).replace(/^lab@123 /, '')) && !holds(shown, 'sh cat /secret/pw'), 'no command in clear: ' + shown);
   eq(LV.commandsOf(posted[0], 123, PUB), ['screen', 'tap 0.5 0.5', 'sh cat /secret/pw']);
   eq(LV.commandsOf(posted[0], 124, PUB), null, 'another run');
 });
@@ -44,7 +49,7 @@ await t('public: a plain command, another key, an altered comment are no command
 });
 await t('public: the reply (text and screen) is sealed, read back whole; no key writes nothing', async () => {
   const b = LV.replyBody(123, 77, 'line\n```inner``` password=hunter2', png, 60_000, PUB);
-  ok(b.startsWith('lab-reply@123 #77\nlab-sealed:v1:') && !/hunter2|inner|line|png:/.test(b.split('\n')[1]), b);
+  ok(b.startsWith('lab-reply@123 #77\nlab-sealed:v1:') && !/hunter2|inner|line|png:/.test(plain(b.split('\n')[1])) && !holds(b, 'hunter2'), b);
   const back = LV.replyParts(b, 123, PUB);
   eq([back.id, back.text, back.png.equals(png)], [77, "line\n'''inner''' password=hunter2", true]);
   eq(LV.replyParts(b, 123, OTHER), null, 'other key');
@@ -60,11 +65,11 @@ await t('public: a screen too big for a comment is left out with a hint; the com
 await t('public: the two-step number goes sealed and comes back as the code', async () => {
   posted.length = 0;
   await api.comment(1, LV.tellBody(123, 'Microsoft の確認の番号: 47', PUB));
-  ok(!/47|Microsoft/.test(posted[0]), posted[0]);
+  ok(posted[0].startsWith('lab-live@123 lab-sealed:v1:') && !/47|Microsoft/.test(plain(posted[0])) && !holds(posted[0], 'Microsoft の確認の番号: 47'), posted[0]);
   eq(LV.tellText(posted[0], 123, PUB), 'Microsoft の確認の番号: 47');
   eq(LV.tellText(posted[0], 123, OTHER), null);
   const c = LV.commandBody(123, 'code 123456', PUB);
-  ok(!/123456/.test(c), c);
+  ok(c.startsWith('lab@123 lab-sealed:v1:') && !/123456/.test(plain(c)) && !holds(c, 'code 123456'), c);
   eq(LV.codeOf(c, 123, PUB), '123456'); eq(LV.codeOf(c, 124, PUB), null); eq(LV.codeOf('lab@123 code 123456', 123, PUB), null, 'plain in public');
   eq(LV.codeOf(LV.commandBody(123, 'code 123456', OTHER), 123, PUB), null);
 });
