@@ -1,0 +1,16 @@
+{
+  "lab": 1,
+  "minutesPerMonth": 50000,
+  "jobs": [
+    "gate",
+    "gate-all",
+    "test",
+    "go",
+    "sim",
+    "upkeep",
+    "dev-bds"
+  ],
+  "hours": "00:00-24:00",
+  "timezone": "Asia/Tokyo",
+  "contact": "Au12jp"
+}
