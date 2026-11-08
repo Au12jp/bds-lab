@@ -6,8 +6,8 @@
         "identifier": "geometry.skin_mirror",
         "texture_width": 512,
         "texture_height": 256,
-        "visible_bounds_width": 16,
-        "visible_bounds_height": 8,
+        "visible_bounds_width": 200,
+        "visible_bounds_height": 100,
         "visible_bounds_offset": [
           0,
           2.5,

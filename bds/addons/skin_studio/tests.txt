@@ -110,11 +110,11 @@ js world.getDimension('overworld').getEntities({ type: 'skin_studio:ghost' }).le
 summon cow 1.5 -60 9.5
 effect @e[type=cow] slowness 30 255 true
 wait 1500
-js (() => { const d = world.getDimension('overworld'); const [r, extra] = d.getEntities({ families: ['skin_studio_reflection'] }); const [c] = d.getEntities({ type: 'minecraft:cow' }); return [r.typeId, r.location.x, r.location.y, r.location.z, extra === undefined, r.getProperty('skin_studio:slot') > 0, Math.abs(r.getProperty('skin_studio:dx') - Math.round((c.location.x - 0.5) * 1000)) < 300].join(' '); })()
-= skin_studio:m_cow 0.5 -60 12 true true true
+js (() => { const d = world.getDimension('overworld'); const [c] = d.getEntities({ type: 'minecraft:cow', location: { x: 1.5, y: -60, z: 9.5 }, closest: 1 }); const r = d.getEntities({ type: 'skin_studio:m_cow' }).find((e) => Math.abs(e.getProperty('skin_studio:dx') - Math.round((c.location.x - 0.5) * 1000)) < 300); return [r.typeId, r.location.x, r.location.y, r.location.z, r.getProperty('skin_studio:slot') > 0].join(' '); })()
+= skin_studio:m_cow 0.5 -60 12 true
 kill @e[type=cow]
 wait 2500
-js world.getDimension('overworld').getEntities({ families: ['skin_studio_reflection'] }).length
+js world.getDimension('overworld').getEntities({ type: 'skin_studio:m_cow' }).length
 = 0
 
 ## the podium, the mirror and the screen podium are still there after a restart

@@ -1,0 +1,16 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.skin_studio.mask": {
+      "geometry": "Geometry.ss_mask",
+      "textures": [
+        "Texture.ss_mask"
+      ],
+      "materials": [
+        {
+          "*": "Material.ss_mask"
+        }
+      ]
+    }
+  }
+}

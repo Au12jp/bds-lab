@@ -14,6 +14,8 @@ const AHEAD = [
 const FIGURES = 4;
 const DEPTH = 8;
 const SIDE = 6;
+const REACH = 96;
+const RISE = 48;
 const OPEN = ['minecraft:air', 'minecraft:barrier'];
 const MIRRORED = Object.keys(BLOCKS);
 const EGG = 'skin_studio:mirror_spawn_egg';
@@ -106,7 +108,7 @@ function inFront(frame, { x, y, z }) {
   const dz = z - frame.glass.z;
   const front = dx * frame.ahead.x + dz * frame.ahead.z;
   const across = dx * frame.side.x + dz * frame.side.z;
-  const ok = front > 0.05 && front < DEPTH + 1 && Math.abs(across) < SIDE + 1 && y - frame.glass.y > -2 && y - frame.glass.y < 6;
+  const ok = front > 0.05 && front < REACH && Math.abs(across) < REACH && Math.abs(y - frame.glass.y) < RISE;
   return ok ? front * front + across * across : undefined;
 }
 
@@ -129,7 +131,7 @@ function reflect(mirror, frame, players) {
     set(mirror, `skin_studio:g${i + 1}`, person?.gen ?? 0);
     if (person) set(mirror, `skin_studio:y${i + 1}`, person.y);
   });
-  showMobs(mirror, frame, (location) => inFront(frame, location) !== undefined);
+  showMobs(mirror, frame, (location) => inFront(frame, location) !== undefined, Math.hypot(REACH, REACH, RISE));
 }
 
 function rebuild(mirror, frame) {

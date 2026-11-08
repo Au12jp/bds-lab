@@ -5,13 +5,17 @@
       "identifier": "skin_studio:mirror",
       "materials": {
         "default": "entity_alphatest",
-        "glass": "entity_alphablend"
+        "glass": "entity_alphablend",
+        "seen": "skin_studio_seen_entity_alphatest",
+        "ss_mask": "skin_studio_mask"
       },
       "textures": {
-        "default": "textures/entity/skin_studio/mirror"
+        "default": "textures/entity/skin_studio/mirror",
+        "ss_mask": "textures/entity/skin_studio/mirror"
       },
       "geometry": {
         "default": "geometry.skin_mirror",
+        "ss_mask": "geometry.skin_studio.mask",
         "r1w": "geometry.skin_studio.reflection1",
         "r1s": "geometry.skin_studio.reflection1_slim",
         "r2w": "geometry.skin_studio.reflection2",
@@ -51,6 +55,7 @@
         "r4": "animation.skin_studio.reflection4"
       },
       "render_controllers": [
+        "controller.render.skin_studio.mask",
         "controller.render.skin_studio.mirror",
         "controller.render.skin_studio.reflection1",
         "controller.render.skin_studio.reflection2",

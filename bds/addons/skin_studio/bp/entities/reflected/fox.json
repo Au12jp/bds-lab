@@ -18,8 +18,8 @@
         "skin_studio:dx": {
           "type": "int",
           "range": [
-            -64000,
-            64000
+            -200000,
+            200000
           ],
           "default": 0,
           "client_sync": true
@@ -27,8 +27,8 @@
         "skin_studio:dy": {
           "type": "int",
           "range": [
-            -64000,
-            64000
+            -200000,
+            200000
           ],
           "default": 0,
           "client_sync": true
@@ -36,8 +36,8 @@
         "skin_studio:dz": {
           "type": "int",
           "range": [
-            -64000,
-            64000
+            -200000,
+            200000
           ],
           "default": 0,
           "client_sync": true

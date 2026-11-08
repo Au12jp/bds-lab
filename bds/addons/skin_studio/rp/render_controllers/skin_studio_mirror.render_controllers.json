@@ -22,48 +22,12 @@
       ],
       "materials": [
         {
-          "*": "Material.default"
+          "*": "Material.seen"
         }
       ],
       "part_visibility": [
         {
           "*": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0)"
-        },
-        {
-          "r1_head": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vh ?? 1)"
-        },
-        {
-          "r1_hat": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vh ?? 1)"
-        },
-        {
-          "r1_body": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vb ?? 1)"
-        },
-        {
-          "r1_jacket": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vb ?? 1)"
-        },
-        {
-          "r1_rightArm": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vb ?? 1)"
-        },
-        {
-          "r1_leftArm": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vb ?? 1)"
-        },
-        {
-          "r1_rightSleeve": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vb ?? 1)"
-        },
-        {
-          "r1_leftSleeve": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vb ?? 1)"
-        },
-        {
-          "r1_rightLeg": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vl ?? 1)"
-        },
-        {
-          "r1_leftLeg": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vl ?? 1)"
-        },
-        {
-          "r1_rightPants": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vl ?? 1)"
-        },
-        {
-          "r1_leftPants": "(v.r1_ok ?? 0) && (v.m1_ok ?? 0) && (v.r1_vl ?? 1)"
         }
       ]
     },
@@ -74,48 +38,12 @@
       ],
       "materials": [
         {
-          "*": "Material.default"
+          "*": "Material.seen"
         }
       ],
       "part_visibility": [
         {
           "*": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0)"
-        },
-        {
-          "r2_head": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vh ?? 1)"
-        },
-        {
-          "r2_hat": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vh ?? 1)"
-        },
-        {
-          "r2_body": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vb ?? 1)"
-        },
-        {
-          "r2_jacket": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vb ?? 1)"
-        },
-        {
-          "r2_rightArm": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vb ?? 1)"
-        },
-        {
-          "r2_leftArm": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vb ?? 1)"
-        },
-        {
-          "r2_rightSleeve": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vb ?? 1)"
-        },
-        {
-          "r2_leftSleeve": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vb ?? 1)"
-        },
-        {
-          "r2_rightLeg": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vl ?? 1)"
-        },
-        {
-          "r2_leftLeg": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vl ?? 1)"
-        },
-        {
-          "r2_rightPants": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vl ?? 1)"
-        },
-        {
-          "r2_leftPants": "(v.r2_ok ?? 0) && (v.m2_ok ?? 0) && (v.r2_vl ?? 1)"
         }
       ]
     },
@@ -126,48 +54,12 @@
       ],
       "materials": [
         {
-          "*": "Material.default"
+          "*": "Material.seen"
         }
       ],
       "part_visibility": [
         {
           "*": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0)"
-        },
-        {
-          "r3_head": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vh ?? 1)"
-        },
-        {
-          "r3_hat": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vh ?? 1)"
-        },
-        {
-          "r3_body": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vb ?? 1)"
-        },
-        {
-          "r3_jacket": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vb ?? 1)"
-        },
-        {
-          "r3_rightArm": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vb ?? 1)"
-        },
-        {
-          "r3_leftArm": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vb ?? 1)"
-        },
-        {
-          "r3_rightSleeve": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vb ?? 1)"
-        },
-        {
-          "r3_leftSleeve": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vb ?? 1)"
-        },
-        {
-          "r3_rightLeg": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vl ?? 1)"
-        },
-        {
-          "r3_leftLeg": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vl ?? 1)"
-        },
-        {
-          "r3_rightPants": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vl ?? 1)"
-        },
-        {
-          "r3_leftPants": "(v.r3_ok ?? 0) && (v.m3_ok ?? 0) && (v.r3_vl ?? 1)"
         }
       ]
     },
@@ -178,48 +70,12 @@
       ],
       "materials": [
         {
-          "*": "Material.default"
+          "*": "Material.seen"
         }
       ],
       "part_visibility": [
         {
           "*": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0)"
-        },
-        {
-          "r4_head": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vh ?? 1)"
-        },
-        {
-          "r4_hat": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vh ?? 1)"
-        },
-        {
-          "r4_body": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vb ?? 1)"
-        },
-        {
-          "r4_jacket": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vb ?? 1)"
-        },
-        {
-          "r4_rightArm": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vb ?? 1)"
-        },
-        {
-          "r4_leftArm": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vb ?? 1)"
-        },
-        {
-          "r4_rightSleeve": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vb ?? 1)"
-        },
-        {
-          "r4_leftSleeve": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vb ?? 1)"
-        },
-        {
-          "r4_rightLeg": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vl ?? 1)"
-        },
-        {
-          "r4_leftLeg": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vl ?? 1)"
-        },
-        {
-          "r4_rightPants": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vl ?? 1)"
-        },
-        {
-          "r4_leftPants": "(v.r4_ok ?? 0) && (v.m4_ok ?? 0) && (v.r4_vl ?? 1)"
         }
       ]
     }

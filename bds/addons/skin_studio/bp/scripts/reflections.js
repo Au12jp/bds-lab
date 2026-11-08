@@ -6,7 +6,7 @@ const LIMIT = 6;
 const AGAIN = 40;
 const REST = 40;
 const FAMILY = 'skin_studio_reflection';
-const FAR = 64000;
+const FAR = 200000;
 
 const claims = new Map();
 const resting = new Map();
@@ -93,11 +93,11 @@ function look(reflection, source, seeds) {
   }
 }
 
-function near(mirror, frame, isInFront) {
+function near(mirror, frame, isInFront, reach) {
   const far = ({ typeId, location: { x, y, z } }) => (typeId === 'minecraft:xp_orb' ? 1000 : 0) + (x - frame.glass.x) ** 2 + (y - frame.glass.y) ** 2 + (z - frame.glass.z) ** 2;
   try {
     return mirror.dimension
-      .getEntities({ location: frame.glass, maxDistance: 16, excludeTypes: ['minecraft:player'], excludeFamilies: ['skin_studio'] })
+      .getEntities({ location: frame.glass, maxDistance: reach, excludeTypes: ['minecraft:player'], excludeFamilies: ['skin_studio'] })
       .filter((entity) => reflectable(entity) && isInFront(entity.location))
       .sort((a, b) => far(a) - far(b))
       .slice(0, LIMIT);
@@ -106,8 +106,8 @@ function near(mirror, frame, isInFront) {
   }
 }
 
-export function showMobs(mirror, frame, isInFront) {
-  const found = near(mirror, frame, isInFront);
+export function showMobs(mirror, frame, isInFront, reach) {
+  const found = near(mirror, frame, isInFront, reach);
   const wanted = new Set(found.map((source) => `${mirror.id}|${source.id}`));
   for (const key of [...shown.keys()]) if (key.startsWith(`${mirror.id}|`) && !wanted.has(key)) drop(key);
 

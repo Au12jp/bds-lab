@@ -1,0 +1,2288 @@
+{
+  "materials": {
+    "version": "1.0.0",
+    "skin_studio_mask:entity": {
+      "+states": [
+        "EnableStencilTest",
+        "StencilWrite",
+        "DisableColorWrite",
+        "DisableDepthWrite"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Always",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Replace"
+      },
+      "backFace": {
+        "stencilFunc": "Always",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Replace"
+      }
+    },
+    "skin_studio_seen_allay:allay": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_armadillo:armadillo": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_armor_stand:armor_stand": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_axolotl:axolotl": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_axolotl_limbs:axolotl_limbs": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_bat_v2:bat_v2": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_bee:bee": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_blaze_body:blaze_body": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_blaze_head:blaze_head": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_bogged:bogged": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_bogged_clothes:bogged_clothes": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_breeze:breeze": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_breeze_eyes:breeze_eyes": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_breeze_wind:breeze_wind": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_camel:camel": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_camera:camera": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_cat:cat": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_charged_creeper:charged_creeper": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_chicken:chicken": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_chicken_cold:chicken_cold": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_chicken_legs:chicken_legs": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_cod:cod": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_copper_golem:copper_golem": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_copper_golem_eyes:copper_golem_eyes": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_copper_golem_flower:copper_golem_flower": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_cow:cow": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_cow_cold:cow_cold": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_creaking:creaking": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_creaking_eyes:creaking_eyes": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_creeper:creeper": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_dolphin:dolphin": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_drowned:drowned": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_ender_crystal:ender_crystal": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_ender_dragon:ender_dragon": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_enderman:enderman": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_enderman_invisible:enderman_invisible": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_endermite:endermite": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_entity_alphatest:entity_alphatest": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_entity_beam:entity_beam": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_entity_beam_additive:entity_beam_additive": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_entity_dissolve_layer0.skinning:entity_dissolve_layer0.skinning": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_entity_dissolve_layer1.skinning:entity_dissolve_layer1.skinning": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_evoker:evoker": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_experience_orb:experience_orb": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_fox:fox": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_frog:frog": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_ghast:ghast": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_glow_squid:glow_squid": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_goat:goat": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_guardian:guardian": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_guardian_ghost:guardian_ghost": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_hoglin:hoglin": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_horse:horse": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_horse_leather_armor:horse_leather_armor": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_husk:husk": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_iron_golem:iron_golem": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_llama:llama": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_magma_cube:magma_cube": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_minecart:minecart": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_mooshroom:mooshroom": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_nautilus:nautilus": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_ocelot:ocelot": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_panda:panda": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_parrot:parrot": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_phantom:phantom": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_phantom_invisible:phantom_invisible": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_pig_v3:pig_v3": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_piglin:piglin": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_piglin_brute:piglin_brute": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_pillager:pillager": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_polar_bear:polar_bear": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_pufferfish:pufferfish": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_rabbit:rabbit": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_ravager:ravager": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_salmon:salmon": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_sheep:sheep": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_shulker:shulker": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_silverfish:silverfish": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_silverfish_layers:silverfish_layers": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_skeleton:skeleton": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_slime:slime": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_slime_outer:slime_outer": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_sniffer:sniffer": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_snow_golem:snow_golem": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_snow_golem_pumpkin:snow_golem_pumpkin": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_spider:spider": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_spider_invisible:spider_invisible": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_squid:squid": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_stray:stray": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_stray_clothes:stray_clothes": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_strider:strider": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_sulfur_cube:sulfur_cube": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_sulfur_cube_outer:sulfur_cube_outer": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_tadpole:tadpole": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_tropicalfish:tropicalfish": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_turtle:turtle": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_vex:vex": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_villager:villager": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_villager_v2:villager_v2": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_villager_v2_masked:villager_v2_masked": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_vindicator:vindicator": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_wandering_trader:wandering_trader": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_warden:warden": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_warden_bioluminescent_layer:warden_bioluminescent_layer": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_witch:witch": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_wither_boss:wither_boss": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_wither_boss_armor:wither_boss_armor": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_wolf:wolf": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_zoglin:zoglin": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_zombie:zombie": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_zombie_villager:zombie_villager": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_zombie_villager_v2:zombie_villager_v2": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    },
+    "skin_studio_seen_zombie_villager_v2_masked:zombie_villager_v2_masked": {
+      "+states": [
+        "EnableStencilTest"
+      ],
+      "stencilRef": 1,
+      "stencilReadMask": 1,
+      "stencilWriteMask": 1,
+      "frontFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      },
+      "backFace": {
+        "stencilFunc": "Equal",
+        "stencilFailOp": "Keep",
+        "stencilDepthFailOp": "Keep",
+        "stencilPassOp": "Keep"
+      }
+    }
+  }
+}
