@@ -14,6 +14,7 @@
 - [x] 画面の表彰台の大きさをコマンドで変える、角の位置は端末から（## /studio:hudsize resizes the screen podium, and the device decides where its corner is）
 - [x] オペレーターでない人は自分の画面だけ（## someone who is not an operator only changes their own screen）
 - [x] コマンドで鏡を置く。窓でない所は断る（## /studio:mirror refuses a plain wall and fits a 3x3 window, facing the room）
+- [x] 鏡の面は見えない箱 4 つでふさがっていて、近づきすぎて体がガラスを突き抜けない（## the glass is solid and exact: four invisible boxes close the window, walking into it stops in front）
 - [x] 鏡の前のブロックは奥に描くだけで、本物のブロックは置かない（## a block in front of the mirror is drawn behind it, and no real block is placed）
 - [x] 鏡の前の生き物に鏡像がつき、動きについていき、いなくなれば消える（## an animal in front of the mirror gets a mirrored copy that follows it, and goes when it goes）
 - [x] 再起動しても残る（## the podium, the mirror and the screen podium are still there after a restart）

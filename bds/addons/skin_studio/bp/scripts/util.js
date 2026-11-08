@@ -3,6 +3,7 @@ import { world, GameMode, ItemStack } from '@minecraft/server';
 export const PODIUM = 'skin_studio:podium';
 export const MIRROR = 'skin_studio:mirror';
 export const GHOST = 'skin_studio:ghost';
+export const WALL = 'skin_studio:mirror_wall';
 export const YAW = [0, 90, 180, -90];
 export const FACINGS = ['south', 'west', 'north', 'east'];
 export const DIMENSIONS = ['overworld', 'nether', 'the_end'];

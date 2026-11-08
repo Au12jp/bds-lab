@@ -1,6 +1,17 @@
 {
   "format_version": "1.8.0",
   "render_controllers": {
+    "controller.render.skin_studio.nothing": {
+      "geometry": "Geometry.default",
+      "textures": [
+        "Texture.default"
+      ],
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ]
+    },
     "controller.render.skin_studio.mirror": {
       "geometry": "Geometry.default",
       "textures": [

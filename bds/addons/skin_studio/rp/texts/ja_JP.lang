@@ -1,6 +1,7 @@
 entity.skin_studio:podium.name=表彰台
 entity.skin_studio:mirror.name=鏡
 entity.skin_studio:ghost.name=鏡の中のブロック
+entity.skin_studio:mirror_wall.name=鏡の面
 entity.skin_studio:player.name=プレイヤー
 entity.skin_studio:reflection.name=鏡像
 entity.minecraft:player.name=プレイヤー

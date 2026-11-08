@@ -1,6 +1,7 @@
 entity.skin_studio:podium.name=Award Podium
 entity.skin_studio:mirror.name=Mirror
 entity.skin_studio:ghost.name=Mirrored Block
+entity.skin_studio:mirror_wall.name=Mirror Surface
 entity.skin_studio:player.name=Player
 entity.skin_studio:reflection.name=Reflection
 entity.minecraft:player.name=Player

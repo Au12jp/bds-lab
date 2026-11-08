@@ -1,0 +1,20 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "skin_studio:mirror_wall",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/skin_studio/mirror"
+      },
+      "geometry": {
+        "default": "geometry.skin_studio.nothing"
+      },
+      "render_controllers": [
+        "controller.render.skin_studio.nothing"
+      ]
+    }
+  }
+}

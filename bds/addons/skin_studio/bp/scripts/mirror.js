@@ -3,7 +3,7 @@ import { MessageFormData } from '@minecraft/server-ui';
 import { relayOf } from './relay.js';
 import { showMobs, forget } from './reflections.js';
 import { BLOCKS } from './blocks.js';
-import { MIRROR, GHOST, facingOf, placerOf, loaded, set, settle, refund } from './util.js';
+import { MIRROR, GHOST, WALL, facingOf, placerOf, loaded, set, settle, refund } from './util.js';
 
 const AHEAD = [
   { x: 0, z: 1 },
@@ -16,6 +16,7 @@ const DEPTH = 8;
 const SIDE = 6;
 const REACH = 96;
 const RISE = 48;
+const WALLS = [-1.2, -0.4, 0.4, 1.2];
 const OPEN = ['minecraft:air', 'minecraft:barrier'];
 const MIRRORED = Object.keys(BLOCKS);
 const EGG = 'skin_studio:mirror_spawn_egg';
@@ -82,8 +83,22 @@ export function setup(mirror, facing) {
   const { x, y, z } = windowAt(mirror.location);
   mirror.setDynamicProperty('ss:f', facing);
   mirror.setDynamicProperty('ss:w', JSON.stringify([x, y, z]));
-  settle(mirror, frameOf(mirror).glass, facing);
+  const frame = frameOf(mirror);
+  settle(mirror, frame.glass, facing);
+  fence(mirror, frame);
   dirty.add(mirror.id);
+}
+
+function fence(mirror, frame) {
+  const mine = mirror.dimension.getEntities({ type: WALL, location: frame.glass, maxDistance: 3 }).filter((wall) => wall.getDynamicProperty('ss:o') === mirror.id);
+  WALLS.forEach((offset, i) => {
+    const spot = { x: frame.glass.x + frame.side.x * offset, y: frame.glass.y, z: frame.glass.z + frame.side.z * offset };
+    const wall = mine.find((each) => each.getDynamicProperty('ss:i') === i);
+    if (wall) return settle(wall, spot, frame.facing);
+    const made = mirror.dimension.spawnEntity(WALL, spot, { initialRotation: 0 });
+    made.setDynamicProperty('ss:o', mirror.id);
+    made.setDynamicProperty('ss:i', i);
+  });
 }
 
 export function removeMirror(mirror) {
@@ -170,14 +185,16 @@ function rebuild(mirror, frame) {
 
 function clearReflections(mirror) {
   forget(mirror);
-  for (const ghost of mirror.dimension.getEntities({ type: GHOST })) {
-    if (ghost.getDynamicProperty('ss:o') === mirror.id) ghost.remove();
+  for (const type of [GHOST, WALL]) {
+    for (const entity of mirror.dimension.getEntities({ type })) {
+      if (entity.getDynamicProperty('ss:o') === mirror.id) entity.remove();
+    }
   }
 }
 
 function sweep() {
-  for (const ghost of loaded(GHOST)) {
-    if (world.getEntity(String(ghost.getDynamicProperty('ss:o')))?.typeId !== MIRROR) ghost.remove();
+  for (const entity of [...loaded(GHOST), ...loaded(WALL)]) {
+    if (world.getEntity(String(entity.getDynamicProperty('ss:o')))?.typeId !== MIRROR) entity.remove();
   }
 }
 
@@ -209,10 +226,11 @@ world.afterEvents.entitySpawn.subscribe(({ entity }) => {
 });
 
 world.beforeEvents.playerInteractWithEntity.subscribe((event) => {
-  if (event.target.typeId !== MIRROR) return;
-  event.cancel = true;
   const { player, target } = event;
-  system.run(() => ask(player, target));
+  if (target.typeId !== MIRROR && target.typeId !== WALL) return;
+  event.cancel = true;
+  const mirror = target.typeId === MIRROR ? target : world.getEntity(String(target.getDynamicProperty('ss:o')));
+  if (mirror?.typeId === MIRROR) system.run(() => ask(player, mirror));
 });
 
 world.afterEvents.playerPlaceBlock.subscribe(touch);
@@ -232,6 +250,7 @@ system.runInterval(() => {
       const frame = frameOf(mirror);
       reflect(mirror, frame, players);
       if (tick % 5 === 0) settle(mirror, frame.glass, frame.facing);
+      if (tick % 5 === 2) fence(mirror, frame);
       if (dirty.delete(mirror.id) || tick % 50 === 0) rebuild(mirror, frame);
     } catch (error) {
       if (!warned.has(mirror.id)) console.warn(`[Skin Studio] mirror ${mirror.id}: ${error}`);
