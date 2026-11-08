@@ -1,0 +1,105 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "skin_studio:m_witch",
+      "is_spawnable": false,
+      "is_summonable": true,
+      "properties": {
+        "skin_studio:slot": {
+          "type": "int",
+          "range": [
+            0,
+            16
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:dx": {
+          "type": "int",
+          "range": [
+            -64000,
+            64000
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:dy": {
+          "type": "int",
+          "range": [
+            -64000,
+            64000
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:dz": {
+          "type": "int",
+          "range": [
+            -64000,
+            64000
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:yaw": {
+          "type": "int",
+          "range": [
+            -1800,
+            1800
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:scale": {
+          "type": "int",
+          "range": [
+            1,
+            10000
+          ],
+          "default": 100,
+          "client_sync": true
+        }
+      }
+    },
+    "components": {
+      "minecraft:health": {
+        "value": 20,
+        "max": 20
+      },
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "cause": "all",
+            "deals_damage": "no"
+          }
+        ]
+      },
+      "minecraft:physics": {
+        "has_gravity": false,
+        "has_collision": false
+      },
+      "minecraft:pushable": {
+        "is_pushable": false,
+        "is_pushable_by_piston": false
+      },
+      "minecraft:knockback_resistance": {
+        "value": 1.0
+      },
+      "minecraft:persistent": {},
+      "minecraft:fire_immune": true,
+      "minecraft:body_rotation_always_follows_head": {},
+      "minecraft:type_family": {
+        "family": [
+          "skin_studio",
+          "skin_studio_reflection",
+          "inanimate"
+        ]
+      },
+      "minecraft:collision_box": {
+        "width": 0.01,
+        "height": 0.01
+      }
+    }
+  }
+}

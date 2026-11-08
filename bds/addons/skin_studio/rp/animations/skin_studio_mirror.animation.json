@@ -1,0 +1,313 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.skin_studio.reflection1": {
+      "loop": true,
+      "bones": {
+        "r1": {
+          "position": [
+            "v.r1_mx",
+            "v.r1_my",
+            "v.r1_mz"
+          ],
+          "rotation": [
+            0,
+            "v.r1_ry",
+            0
+          ],
+          "scale": 0.9375
+        },
+        "r1_root": {
+          "position": [
+            0,
+            "1.25 * v.r1_k",
+            "9 * v.r1_k"
+          ],
+          "rotation": [
+            "28 * v.r1_k",
+            0,
+            0
+          ]
+        },
+        "r1_body": {
+          "position": [
+            0,
+            "-2 * v.r1_k",
+            0
+          ]
+        },
+        "r1_head": {
+          "position": [
+            0,
+            "-v.r1_k",
+            0
+          ],
+          "rotation": [
+            "v.r1_hx - 28 * v.r1_k",
+            "-v.r1_hy",
+            0
+          ]
+        },
+        "r1_rightArm": {
+          "rotation": [
+            "-v.r1_w - 5.7 * v.r1_k",
+            0,
+            "-(math.cos(v.r1_l * 103.2) * 2.865 + 2.865)"
+          ]
+        },
+        "r1_leftArm": {
+          "rotation": [
+            "v.r1_w - 5.7 * v.r1_k",
+            0,
+            "(math.cos(v.r1_l * 103.2) * 2.865 + 2.865)"
+          ]
+        },
+        "r1_rightLeg": {
+          "rotation": [
+            "v.r1_w * 1.4 - 28 * v.r1_k",
+            0,
+            0
+          ]
+        },
+        "r1_leftLeg": {
+          "rotation": [
+            "v.r1_w * -1.4 - 28 * v.r1_k",
+            0,
+            0
+          ]
+        }
+      }
+    },
+    "animation.skin_studio.reflection2": {
+      "loop": true,
+      "bones": {
+        "r2": {
+          "position": [
+            "v.r2_mx",
+            "v.r2_my",
+            "v.r2_mz"
+          ],
+          "rotation": [
+            0,
+            "v.r2_ry",
+            0
+          ],
+          "scale": 0.9375
+        },
+        "r2_root": {
+          "position": [
+            0,
+            "1.25 * v.r2_k",
+            "9 * v.r2_k"
+          ],
+          "rotation": [
+            "28 * v.r2_k",
+            0,
+            0
+          ]
+        },
+        "r2_body": {
+          "position": [
+            0,
+            "-2 * v.r2_k",
+            0
+          ]
+        },
+        "r2_head": {
+          "position": [
+            0,
+            "-v.r2_k",
+            0
+          ],
+          "rotation": [
+            "v.r2_hx - 28 * v.r2_k",
+            "-v.r2_hy",
+            0
+          ]
+        },
+        "r2_rightArm": {
+          "rotation": [
+            "-v.r2_w - 5.7 * v.r2_k",
+            0,
+            "-(math.cos(v.r2_l * 103.2) * 2.865 + 2.865)"
+          ]
+        },
+        "r2_leftArm": {
+          "rotation": [
+            "v.r2_w - 5.7 * v.r2_k",
+            0,
+            "(math.cos(v.r2_l * 103.2) * 2.865 + 2.865)"
+          ]
+        },
+        "r2_rightLeg": {
+          "rotation": [
+            "v.r2_w * 1.4 - 28 * v.r2_k",
+            0,
+            0
+          ]
+        },
+        "r2_leftLeg": {
+          "rotation": [
+            "v.r2_w * -1.4 - 28 * v.r2_k",
+            0,
+            0
+          ]
+        }
+      }
+    },
+    "animation.skin_studio.reflection3": {
+      "loop": true,
+      "bones": {
+        "r3": {
+          "position": [
+            "v.r3_mx",
+            "v.r3_my",
+            "v.r3_mz"
+          ],
+          "rotation": [
+            0,
+            "v.r3_ry",
+            0
+          ],
+          "scale": 0.9375
+        },
+        "r3_root": {
+          "position": [
+            0,
+            "1.25 * v.r3_k",
+            "9 * v.r3_k"
+          ],
+          "rotation": [
+            "28 * v.r3_k",
+            0,
+            0
+          ]
+        },
+        "r3_body": {
+          "position": [
+            0,
+            "-2 * v.r3_k",
+            0
+          ]
+        },
+        "r3_head": {
+          "position": [
+            0,
+            "-v.r3_k",
+            0
+          ],
+          "rotation": [
+            "v.r3_hx - 28 * v.r3_k",
+            "-v.r3_hy",
+            0
+          ]
+        },
+        "r3_rightArm": {
+          "rotation": [
+            "-v.r3_w - 5.7 * v.r3_k",
+            0,
+            "-(math.cos(v.r3_l * 103.2) * 2.865 + 2.865)"
+          ]
+        },
+        "r3_leftArm": {
+          "rotation": [
+            "v.r3_w - 5.7 * v.r3_k",
+            0,
+            "(math.cos(v.r3_l * 103.2) * 2.865 + 2.865)"
+          ]
+        },
+        "r3_rightLeg": {
+          "rotation": [
+            "v.r3_w * 1.4 - 28 * v.r3_k",
+            0,
+            0
+          ]
+        },
+        "r3_leftLeg": {
+          "rotation": [
+            "v.r3_w * -1.4 - 28 * v.r3_k",
+            0,
+            0
+          ]
+        }
+      }
+    },
+    "animation.skin_studio.reflection4": {
+      "loop": true,
+      "bones": {
+        "r4": {
+          "position": [
+            "v.r4_mx",
+            "v.r4_my",
+            "v.r4_mz"
+          ],
+          "rotation": [
+            0,
+            "v.r4_ry",
+            0
+          ],
+          "scale": 0.9375
+        },
+        "r4_root": {
+          "position": [
+            0,
+            "1.25 * v.r4_k",
+            "9 * v.r4_k"
+          ],
+          "rotation": [
+            "28 * v.r4_k",
+            0,
+            0
+          ]
+        },
+        "r4_body": {
+          "position": [
+            0,
+            "-2 * v.r4_k",
+            0
+          ]
+        },
+        "r4_head": {
+          "position": [
+            0,
+            "-v.r4_k",
+            0
+          ],
+          "rotation": [
+            "v.r4_hx - 28 * v.r4_k",
+            "-v.r4_hy",
+            0
+          ]
+        },
+        "r4_rightArm": {
+          "rotation": [
+            "-v.r4_w - 5.7 * v.r4_k",
+            0,
+            "-(math.cos(v.r4_l * 103.2) * 2.865 + 2.865)"
+          ]
+        },
+        "r4_leftArm": {
+          "rotation": [
+            "v.r4_w - 5.7 * v.r4_k",
+            0,
+            "(math.cos(v.r4_l * 103.2) * 2.865 + 2.865)"
+          ]
+        },
+        "r4_rightLeg": {
+          "rotation": [
+            "v.r4_w * 1.4 - 28 * v.r4_k",
+            0,
+            0
+          ]
+        },
+        "r4_leftLeg": {
+          "rotation": [
+            "v.r4_w * -1.4 - 28 * v.r4_k",
+            0,
+            0
+          ]
+        }
+      }
+    }
+  }
+}

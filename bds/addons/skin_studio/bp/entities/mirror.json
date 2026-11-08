@@ -1,0 +1,158 @@
+{
+  "format_version": "1.21.90",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "skin_studio:mirror",
+      "is_spawnable": true,
+      "is_summonable": true,
+      "properties": {
+        "skin_studio:r1": {
+          "type": "int",
+          "range": [
+            0,
+            100
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:r2": {
+          "type": "int",
+          "range": [
+            0,
+            100
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:r3": {
+          "type": "int",
+          "range": [
+            0,
+            100
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:r4": {
+          "type": "int",
+          "range": [
+            0,
+            100
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:g1": {
+          "type": "int",
+          "range": [
+            0,
+            1000000
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:g2": {
+          "type": "int",
+          "range": [
+            0,
+            1000000
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:g3": {
+          "type": "int",
+          "range": [
+            0,
+            1000000
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:g4": {
+          "type": "int",
+          "range": [
+            0,
+            1000000
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:y1": {
+          "type": "int",
+          "range": [
+            -2048,
+            8192
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:y2": {
+          "type": "int",
+          "range": [
+            -2048,
+            8192
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:y3": {
+          "type": "int",
+          "range": [
+            -2048,
+            8192
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "skin_studio:y4": {
+          "type": "int",
+          "range": [
+            -2048,
+            8192
+          ],
+          "default": 0,
+          "client_sync": true
+        }
+      }
+    },
+    "components": {
+      "minecraft:health": {
+        "value": 20,
+        "max": 20
+      },
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "cause": "all",
+            "deals_damage": "no"
+          }
+        ]
+      },
+      "minecraft:physics": {
+        "has_gravity": false,
+        "has_collision": false
+      },
+      "minecraft:pushable": {
+        "is_pushable": false,
+        "is_pushable_by_piston": false
+      },
+      "minecraft:knockback_resistance": {
+        "value": 1.0
+      },
+      "minecraft:persistent": {},
+      "minecraft:fire_immune": true,
+      "minecraft:body_rotation_always_follows_head": {},
+      "minecraft:type_family": {
+        "family": [
+          "skin_studio",
+          "inanimate"
+        ]
+      },
+      "minecraft:collision_box": {
+        "width": 1.0,
+        "height": 3.0
+      }
+    }
+  }
+}

@@ -1,0 +1,78 @@
+# 本物のアプリで、画面の表彰台（GeoUI）と鏡を見る: node lab.mjs app run -a skin_studio（Actions の app: addon=skin_studio, mode=run）
+section title
+launch
+until title 600000
+shot title
+section join
+join
+until joined 300000
+wait 3000
+do gamerule dodaylightcycle false
+do time set noon
+do weather clear
+section podium
+do studio:podium 0 -60 5 north
+wait 1500
+do execute as @a run studio:rank 1 @s
+do tp @a 0.5 -60 0.5 facing 0.5 -58.5 5
+wait 4000
+shot podium                               # 1位に自分のスキン、2・3位は銀と銅の像（台の一部なので回転しない）
+section screen
+do tp @a 0.5 -60 0.5 0 90                 # 足元の地面だけを見る（雲も動かない）: 変わるのは画面の表彰台だけ
+wait 3000
+shot world
+do execute as @a run studio:hud on
+wait 4000
+shot screen-podium                        # ← 右上の角に表彰台（GeoUI、高さの 30%、暗いカードの上）
+changed 0.01
+do execute as @a run studio:hudsize 60
+wait 3000
+shot screen-small                         # ← 同じ角のまま小さく
+do execute as @a run studio:hudsize 100
+perf 5000
+do execute as @a run studio:hud off
+wait 3000
+shot screen-off
+section mirror-field
+do studio:mirror 20 -60 12 north           # 野原にそのまま立てた鏡
+do tp @a 20.5 -60 8.5 facing 20.5 -59 12
+wait 4000
+shot mirror-field                         # 枠の中にだけ自分が映る
+do tp @a 26.5 -60 11.5 facing 20.5 -59 12
+wait 3000
+shot mirror-field-side                    # 横から: 枠の外に鏡像がはみ出さない
+do tp @a 20.5 -60 15.5 facing 20.5 -59 12
+wait 3000
+shot mirror-field-back                    # 裏から: 何も映らない
+do execute as @a at @s run studio:remove
+section mirror
+do fill -4 -60 12 4 -56 12 stone
+do fill -1 -60 12 1 -58 12 air
+do setblock 2 -60 9 gold_block
+do setblock -2 -60 10 oak_planks
+do studio:mirror 0 -60 12 north
+do tp @a 0.5 -60 7.5 facing 0.5 -59 12
+wait 5000
+shot mirror                               # 自分が左右反転で映り、金ブロックと板材が窓の奥に描かれる（本物は置かない）
+record start
+walk left 1
+walk right 1
+look left 300 40
+look right 300 40
+record stop                               # 歩く・振り向く鏡像がカクつかないか（recordings/rec-1.mp4）
+shot mirror-after
+section mirror-mobs
+do summon cow 1.5 -60 10.5
+do summon sheep -1.5 -60 9.5
+do summon villager 0.5 -60 8.5
+do effect @e[type=!player] slowness 60 255 true
+do tp @a 3.5 -60 6.5 facing 0.5 -59 12
+wait 5000
+shot mirror-mobs                          # 牛・羊・村人も左右反転で窓の奥に映る（色・模様・首の向き・歩きも本物と同じ）
+do tp @a 0.5 -60 11 facing 0.5 -59 12
+do tp @e[type=cow] 0.5 -60 6.5
+wait 3000
+shot mirror-mob-behind                    # 背中側で画面に入っていない牛も映る（サーバー経由の予備の動き）
+do kill @e[type=!player]
+section done
+absent clientlog \bERROR\b                # コンテンツログに、パック・JSON UI・スクリプトのエラーが無い

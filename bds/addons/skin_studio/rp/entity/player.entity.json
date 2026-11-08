@@ -1,0 +1,200 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "minecraft:player",
+      "materials": {
+        "default": "entity_alphatest",
+        "cape": "entity_alphatest",
+        "animated": "player_animated",
+        "spectator": "player_spectator",
+        "ss_glow": "entity_emissive_alpha",
+        "ss_card": "entity_alphablend"
+      },
+      "textures": {
+        "default": "textures/entity/steve",
+        "cape": "textures/entity/cape_invisible",
+        "ss_podium": "textures/entity/skin_studio/podium",
+        "ss_trophy": "textures/entity/skin_studio/trophy",
+        "ss_card": "textures/entity/skin_studio/card",
+        "ss_gold": "textures/entity/skin_studio/statue_gold",
+        "ss_silver": "textures/entity/skin_studio/statue_silver",
+        "ss_bronze": "textures/entity/skin_studio/statue_bronze"
+      },
+      "geometry": {
+        "default": "geometry.humanoid.custom",
+        "cape": "geometry.cape",
+        "ssu_card": "geometry.skin_studio.screen.card",
+        "ssu_podium": "geometry.skin_studio.screen.podium",
+        "ssu_trophy_w": "geometry.skin_studio.screen.trophy",
+        "ssu_trophy_s": "geometry.skin_studio.screen.trophy_slim",
+        "ssu_f1w": "geometry.skin_studio.screen.figure1",
+        "ssu_f1s": "geometry.skin_studio.screen.figure1_slim",
+        "ssu_f2w": "geometry.skin_studio.screen.figure2",
+        "ssu_f2s": "geometry.skin_studio.screen.figure2_slim",
+        "ssu_f3w": "geometry.skin_studio.screen.figure3",
+        "ssu_f3s": "geometry.skin_studio.screen.figure3_slim"
+      },
+      "scripts": {
+        "scale": "0.9375",
+        "initialize": [
+          "variable.is_holding_right = 0.0;",
+          "variable.is_blinking = 0.0;",
+          "variable.last_blink_time = 0.0;",
+          "variable.hand_bob = 0.0;"
+        ],
+        "pre_animation": [
+          "variable.helmet_layer_visible = !query.has_head_gear;",
+          "variable.leg_layer_visible = 1.0;",
+          "variable.boot_layer_visible = 1.0;",
+          "variable.chest_layer_visible = 1.0;",
+          "variable.attack_body_rot_y = Math.sin(360*Math.sqrt(variable.attack_time)) * 5.0;",
+          "variable.tcos0 = (math.cos(query.modified_distance_moved * 38.17) * query.modified_move_speed / variable.gliding_speed_value) * 57.3;",
+          "variable.first_person_rotation_factor = math.sin((1 - variable.attack_time) * 180.0);",
+          "variable.hand_bob = query.life_time < 0.01 ? 0.0 : variable.hand_bob + ((query.is_on_ground && query.is_alive ? math.clamp(math.sqrt(math.pow(query.position_delta(0), 2.0) + math.pow(query.position_delta(2), 2.0)), 0.0, 0.1) : 0.0) - variable.hand_bob) * 0.02;",
+          "variable.map_angle = math.clamp(1 - variable.player_x_rotation / 45.1, 0.0, 1.0);",
+          "variable.item_use_normalized = query.main_hand_item_use_duration / query.main_hand_item_max_duration;",
+          "variable.riding_y_offset = query.is_riding_any_entity_of_type('minecraft:minecart', 'minecraft:boat', 'minecraft:chest_boat', 'minecraft:strider') ? -3.0 : 0.0;",
+          "v.ss_hud = (q.has_property('skin_studio:hud') ? q.property('skin_studio:hud') : 0); v.ss_clock = (math.mod(q.time_stamp, 72000) + q.frame_alpha) / 20; (v.ss_hud && !(v.ss_was ?? 0)) ? { v.ss_since = q.life_time; }; v.ss_was = v.ss_hud; t.ssp = math.clamp((q.life_time - (v.ss_since ?? -9)) / 0.3, 0, 1); v.ss_pop = 1 - math.pow(1 - t.ssp, 3);",
+          "t.ssa = (q.has_property('skin_studio:slot') ? q.property('skin_studio:slot') : 0); t.ssb = (q.has_property('skin_studio:gen') ? q.property('skin_studio:gen') : 0); (t.ssa > 0 && t.ssb > 0 && !q.is_in_ui) ? { t.ssq = q.frame_alpha; (v.ss_qa ?? -1) < 0 ? { v.ss_qa = t.ssq; v.ss_qx = q.position(0); v.ss_x0 = q.position(0); v.ss_x1 = q.position(0); v.ss_qy = q.position(1); v.ss_y0 = q.position(1); v.ss_y1 = q.position(1); v.ss_qz = q.position(2); v.ss_z0 = q.position(2); v.ss_z1 = q.position(2); v.ss_qb = q.body_y_rotation; v.ss_b0 = q.body_y_rotation; v.ss_b1 = q.body_y_rotation; }; t.ssw = v.ss_qa; (t.ssq > t.ssw && q.delta_time < 0.049) ? { (math.abs(q.position(0) - v.ss_qx) + math.abs(q.position(1) - v.ss_qy) + math.abs(q.position(2) - v.ss_qz) > 0.00001) ? { v.ss_lp = 1; }; (math.abs(q.body_y_rotation - v.ss_qb) > 0.0001) ? { v.ss_lb = 1; }; }; (t.ssq < t.ssw || q.position(0) != v.ss_x1 || q.position(1) != v.ss_y1 || q.position(2) != v.ss_z1) ? { v.ss_x0 = v.ss_x1; v.ss_x1 = q.position(0); v.ss_y0 = v.ss_y1; v.ss_y1 = q.position(1); v.ss_z0 = v.ss_z1; v.ss_z1 = q.position(2); (math.abs(v.ss_x1 - v.ss_x0) + math.abs(v.ss_y1 - v.ss_y0) + math.abs(v.ss_z1 - v.ss_z0) > 8) ? { v.ss_x0 = v.ss_x1; v.ss_y0 = v.ss_y1; v.ss_z0 = v.ss_z1; }; }; (t.ssq < t.ssw || q.body_y_rotation != v.ss_b1) ? { v.ss_b0 = v.ss_b1; v.ss_b1 = q.body_y_rotation; }; v.ss_qa = t.ssq; v.ss_qx = q.position(0); v.ss_qy = q.position(1); v.ss_qz = q.position(2); v.ss_qb = q.body_y_rotation; t.ssx = (v.ss_lp ?? 0) ? q.position(0) : v.ss_x0 + (v.ss_x1 - v.ss_x0) * t.ssq; t.ssy = (v.ss_lp ?? 0) ? q.position(1) : v.ss_y0 + (v.ss_y1 - v.ss_y0) * t.ssq; t.ssz = (v.ss_lp ?? 0) ? q.position(2) : v.ss_z0 + (v.ss_z1 - v.ss_z0) * t.ssq; t.ssu = v.ss_b1 - v.ss_b0; t.ssu = t.ssu - 360 * math.round(t.ssu / 360); t.ssv = (v.ss_lb ?? 0) ? q.body_y_rotation : v.ss_b0 + t.ssu * t.ssq; (v.is_first_person ?? 0) ? { t.ss_camx = t.ssx; t.ss_camy = t.ssy + q.distance_from_camera; t.ss_camz = t.ssz; t.ss_camt = v.ss_clock; }; (t.ssa >= 1 && t.ssa <= 10) ? { t.ssa == 1 ? { t.ss_x1 = t.ssx; t.ss_y1 = t.ssy; t.ss_z1 = t.ssz; t.ss_b1 = t.ssv; t.ss_hx1 = q.target_x_rotation; t.ss_hy1 = q.target_y_rotation; t.ss_w1 = v.tcos0 ?? 0; t.ss_k1 = q.is_sneaking; t.ss_l1 = q.life_time; t.ss_p1 = t.ssb; }; t.ssa == 2 ? { t.ss_x2 = t.ssx; t.ss_y2 = t.ssy; t.ss_z2 = t.ssz; t.ss_b2 = t.ssv; t.ss_hx2 = q.target_x_rotation; t.ss_hy2 = q.target_y_rotation; t.ss_w2 = v.tcos0 ?? 0; t.ss_k2 = q.is_sneaking; t.ss_l2 = q.life_time; t.ss_p2 = t.ssb; }; t.ssa == 3 ? { t.ss_x3 = t.ssx; t.ss_y3 = t.ssy; t.ss_z3 = t.ssz; t.ss_b3 = t.ssv; t.ss_hx3 = q.target_x_rotation; t.ss_hy3 = q.target_y_rotation; t.ss_w3 = v.tcos0 ?? 0; t.ss_k3 = q.is_sneaking; t.ss_l3 = q.life_time; t.ss_p3 = t.ssb; }; t.ssa == 4 ? { t.ss_x4 = t.ssx; t.ss_y4 = t.ssy; t.ss_z4 = t.ssz; t.ss_b4 = t.ssv; t.ss_hx4 = q.target_x_rotation; t.ss_hy4 = q.target_y_rotation; t.ss_w4 = v.tcos0 ?? 0; t.ss_k4 = q.is_sneaking; t.ss_l4 = q.life_time; t.ss_p4 = t.ssb; }; t.ssa == 5 ? { t.ss_x5 = t.ssx; t.ss_y5 = t.ssy; t.ss_z5 = t.ssz; t.ss_b5 = t.ssv; t.ss_hx5 = q.target_x_rotation; t.ss_hy5 = q.target_y_rotation; t.ss_w5 = v.tcos0 ?? 0; t.ss_k5 = q.is_sneaking; t.ss_l5 = q.life_time; t.ss_p5 = t.ssb; }; t.ssa == 6 ? { t.ss_x6 = t.ssx; t.ss_y6 = t.ssy; t.ss_z6 = t.ssz; t.ss_b6 = t.ssv; t.ss_hx6 = q.target_x_rotation; t.ss_hy6 = q.target_y_rotation; t.ss_w6 = v.tcos0 ?? 0; t.ss_k6 = q.is_sneaking; t.ss_l6 = q.life_time; t.ss_p6 = t.ssb; }; t.ssa == 7 ? { t.ss_x7 = t.ssx; t.ss_y7 = t.ssy; t.ss_z7 = t.ssz; t.ss_b7 = t.ssv; t.ss_hx7 = q.target_x_rotation; t.ss_hy7 = q.target_y_rotation; t.ss_w7 = v.tcos0 ?? 0; t.ss_k7 = q.is_sneaking; t.ss_l7 = q.life_time; t.ss_p7 = t.ssb; }; t.ssa == 8 ? { t.ss_x8 = t.ssx; t.ss_y8 = t.ssy; t.ss_z8 = t.ssz; t.ss_b8 = t.ssv; t.ss_hx8 = q.target_x_rotation; t.ss_hy8 = q.target_y_rotation; t.ss_w8 = v.tcos0 ?? 0; t.ss_k8 = q.is_sneaking; t.ss_l8 = q.life_time; t.ss_p8 = t.ssb; }; t.ssa == 9 ? { t.ss_x9 = t.ssx; t.ss_y9 = t.ssy; t.ss_z9 = t.ssz; t.ss_b9 = t.ssv; t.ss_hx9 = q.target_x_rotation; t.ss_hy9 = q.target_y_rotation; t.ss_w9 = v.tcos0 ?? 0; t.ss_k9 = q.is_sneaking; t.ss_l9 = q.life_time; t.ss_p9 = t.ssb; }; t.ssa == 10 ? { t.ss_x10 = t.ssx; t.ss_y10 = t.ssy; t.ss_z10 = t.ssz; t.ss_b10 = t.ssv; t.ss_hx10 = q.target_x_rotation; t.ss_hy10 = q.target_y_rotation; t.ss_w10 = v.tcos0 ?? 0; t.ss_k10 = q.is_sneaking; t.ss_l10 = q.life_time; t.ss_p10 = t.ssb; }; }; (t.ssa >= 11 && t.ssa <= 20) ? { t.ssa == 11 ? { t.ss_x11 = t.ssx; t.ss_y11 = t.ssy; t.ss_z11 = t.ssz; t.ss_b11 = t.ssv; t.ss_hx11 = q.target_x_rotation; t.ss_hy11 = q.target_y_rotation; t.ss_w11 = v.tcos0 ?? 0; t.ss_k11 = q.is_sneaking; t.ss_l11 = q.life_time; t.ss_p11 = t.ssb; }; t.ssa == 12 ? { t.ss_x12 = t.ssx; t.ss_y12 = t.ssy; t.ss_z12 = t.ssz; t.ss_b12 = t.ssv; t.ss_hx12 = q.target_x_rotation; t.ss_hy12 = q.target_y_rotation; t.ss_w12 = v.tcos0 ?? 0; t.ss_k12 = q.is_sneaking; t.ss_l12 = q.life_time; t.ss_p12 = t.ssb; }; t.ssa == 13 ? { t.ss_x13 = t.ssx; t.ss_y13 = t.ssy; t.ss_z13 = t.ssz; t.ss_b13 = t.ssv; t.ss_hx13 = q.target_x_rotation; t.ss_hy13 = q.target_y_rotation; t.ss_w13 = v.tcos0 ?? 0; t.ss_k13 = q.is_sneaking; t.ss_l13 = q.life_time; t.ss_p13 = t.ssb; }; t.ssa == 14 ? { t.ss_x14 = t.ssx; t.ss_y14 = t.ssy; t.ss_z14 = t.ssz; t.ss_b14 = t.ssv; t.ss_hx14 = q.target_x_rotation; t.ss_hy14 = q.target_y_rotation; t.ss_w14 = v.tcos0 ?? 0; t.ss_k14 = q.is_sneaking; t.ss_l14 = q.life_time; t.ss_p14 = t.ssb; }; t.ssa == 15 ? { t.ss_x15 = t.ssx; t.ss_y15 = t.ssy; t.ss_z15 = t.ssz; t.ss_b15 = t.ssv; t.ss_hx15 = q.target_x_rotation; t.ss_hy15 = q.target_y_rotation; t.ss_w15 = v.tcos0 ?? 0; t.ss_k15 = q.is_sneaking; t.ss_l15 = q.life_time; t.ss_p15 = t.ssb; }; t.ssa == 16 ? { t.ss_x16 = t.ssx; t.ss_y16 = t.ssy; t.ss_z16 = t.ssz; t.ss_b16 = t.ssv; t.ss_hx16 = q.target_x_rotation; t.ss_hy16 = q.target_y_rotation; t.ss_w16 = v.tcos0 ?? 0; t.ss_k16 = q.is_sneaking; t.ss_l16 = q.life_time; t.ss_p16 = t.ssb; }; t.ssa == 17 ? { t.ss_x17 = t.ssx; t.ss_y17 = t.ssy; t.ss_z17 = t.ssz; t.ss_b17 = t.ssv; t.ss_hx17 = q.target_x_rotation; t.ss_hy17 = q.target_y_rotation; t.ss_w17 = v.tcos0 ?? 0; t.ss_k17 = q.is_sneaking; t.ss_l17 = q.life_time; t.ss_p17 = t.ssb; }; t.ssa == 18 ? { t.ss_x18 = t.ssx; t.ss_y18 = t.ssy; t.ss_z18 = t.ssz; t.ss_b18 = t.ssv; t.ss_hx18 = q.target_x_rotation; t.ss_hy18 = q.target_y_rotation; t.ss_w18 = v.tcos0 ?? 0; t.ss_k18 = q.is_sneaking; t.ss_l18 = q.life_time; t.ss_p18 = t.ssb; }; t.ssa == 19 ? { t.ss_x19 = t.ssx; t.ss_y19 = t.ssy; t.ss_z19 = t.ssz; t.ss_b19 = t.ssv; t.ss_hx19 = q.target_x_rotation; t.ss_hy19 = q.target_y_rotation; t.ss_w19 = v.tcos0 ?? 0; t.ss_k19 = q.is_sneaking; t.ss_l19 = q.life_time; t.ss_p19 = t.ssb; }; t.ssa == 20 ? { t.ss_x20 = t.ssx; t.ss_y20 = t.ssy; t.ss_z20 = t.ssz; t.ss_b20 = t.ssv; t.ss_hx20 = q.target_x_rotation; t.ss_hy20 = q.target_y_rotation; t.ss_w20 = v.tcos0 ?? 0; t.ss_k20 = q.is_sneaking; t.ss_l20 = q.life_time; t.ss_p20 = t.ssb; }; }; (t.ssa >= 21 && t.ssa <= 30) ? { t.ssa == 21 ? { t.ss_x21 = t.ssx; t.ss_y21 = t.ssy; t.ss_z21 = t.ssz; t.ss_b21 = t.ssv; t.ss_hx21 = q.target_x_rotation; t.ss_hy21 = q.target_y_rotation; t.ss_w21 = v.tcos0 ?? 0; t.ss_k21 = q.is_sneaking; t.ss_l21 = q.life_time; t.ss_p21 = t.ssb; }; t.ssa == 22 ? { t.ss_x22 = t.ssx; t.ss_y22 = t.ssy; t.ss_z22 = t.ssz; t.ss_b22 = t.ssv; t.ss_hx22 = q.target_x_rotation; t.ss_hy22 = q.target_y_rotation; t.ss_w22 = v.tcos0 ?? 0; t.ss_k22 = q.is_sneaking; t.ss_l22 = q.life_time; t.ss_p22 = t.ssb; }; t.ssa == 23 ? { t.ss_x23 = t.ssx; t.ss_y23 = t.ssy; t.ss_z23 = t.ssz; t.ss_b23 = t.ssv; t.ss_hx23 = q.target_x_rotation; t.ss_hy23 = q.target_y_rotation; t.ss_w23 = v.tcos0 ?? 0; t.ss_k23 = q.is_sneaking; t.ss_l23 = q.life_time; t.ss_p23 = t.ssb; }; t.ssa == 24 ? { t.ss_x24 = t.ssx; t.ss_y24 = t.ssy; t.ss_z24 = t.ssz; t.ss_b24 = t.ssv; t.ss_hx24 = q.target_x_rotation; t.ss_hy24 = q.target_y_rotation; t.ss_w24 = v.tcos0 ?? 0; t.ss_k24 = q.is_sneaking; t.ss_l24 = q.life_time; t.ss_p24 = t.ssb; }; t.ssa == 25 ? { t.ss_x25 = t.ssx; t.ss_y25 = t.ssy; t.ss_z25 = t.ssz; t.ss_b25 = t.ssv; t.ss_hx25 = q.target_x_rotation; t.ss_hy25 = q.target_y_rotation; t.ss_w25 = v.tcos0 ?? 0; t.ss_k25 = q.is_sneaking; t.ss_l25 = q.life_time; t.ss_p25 = t.ssb; }; t.ssa == 26 ? { t.ss_x26 = t.ssx; t.ss_y26 = t.ssy; t.ss_z26 = t.ssz; t.ss_b26 = t.ssv; t.ss_hx26 = q.target_x_rotation; t.ss_hy26 = q.target_y_rotation; t.ss_w26 = v.tcos0 ?? 0; t.ss_k26 = q.is_sneaking; t.ss_l26 = q.life_time; t.ss_p26 = t.ssb; }; t.ssa == 27 ? { t.ss_x27 = t.ssx; t.ss_y27 = t.ssy; t.ss_z27 = t.ssz; t.ss_b27 = t.ssv; t.ss_hx27 = q.target_x_rotation; t.ss_hy27 = q.target_y_rotation; t.ss_w27 = v.tcos0 ?? 0; t.ss_k27 = q.is_sneaking; t.ss_l27 = q.life_time; t.ss_p27 = t.ssb; }; t.ssa == 28 ? { t.ss_x28 = t.ssx; t.ss_y28 = t.ssy; t.ss_z28 = t.ssz; t.ss_b28 = t.ssv; t.ss_hx28 = q.target_x_rotation; t.ss_hy28 = q.target_y_rotation; t.ss_w28 = v.tcos0 ?? 0; t.ss_k28 = q.is_sneaking; t.ss_l28 = q.life_time; t.ss_p28 = t.ssb; }; t.ssa == 29 ? { t.ss_x29 = t.ssx; t.ss_y29 = t.ssy; t.ss_z29 = t.ssz; t.ss_b29 = t.ssv; t.ss_hx29 = q.target_x_rotation; t.ss_hy29 = q.target_y_rotation; t.ss_w29 = v.tcos0 ?? 0; t.ss_k29 = q.is_sneaking; t.ss_l29 = q.life_time; t.ss_p29 = t.ssb; }; t.ssa == 30 ? { t.ss_x30 = t.ssx; t.ss_y30 = t.ssy; t.ss_z30 = t.ssz; t.ss_b30 = t.ssv; t.ss_hx30 = q.target_x_rotation; t.ss_hy30 = q.target_y_rotation; t.ss_w30 = v.tcos0 ?? 0; t.ss_k30 = q.is_sneaking; t.ss_l30 = q.life_time; t.ss_p30 = t.ssb; }; }; (t.ssa >= 31 && t.ssa <= 40) ? { t.ssa == 31 ? { t.ss_x31 = t.ssx; t.ss_y31 = t.ssy; t.ss_z31 = t.ssz; t.ss_b31 = t.ssv; t.ss_hx31 = q.target_x_rotation; t.ss_hy31 = q.target_y_rotation; t.ss_w31 = v.tcos0 ?? 0; t.ss_k31 = q.is_sneaking; t.ss_l31 = q.life_time; t.ss_p31 = t.ssb; }; t.ssa == 32 ? { t.ss_x32 = t.ssx; t.ss_y32 = t.ssy; t.ss_z32 = t.ssz; t.ss_b32 = t.ssv; t.ss_hx32 = q.target_x_rotation; t.ss_hy32 = q.target_y_rotation; t.ss_w32 = v.tcos0 ?? 0; t.ss_k32 = q.is_sneaking; t.ss_l32 = q.life_time; t.ss_p32 = t.ssb; }; t.ssa == 33 ? { t.ss_x33 = t.ssx; t.ss_y33 = t.ssy; t.ss_z33 = t.ssz; t.ss_b33 = t.ssv; t.ss_hx33 = q.target_x_rotation; t.ss_hy33 = q.target_y_rotation; t.ss_w33 = v.tcos0 ?? 0; t.ss_k33 = q.is_sneaking; t.ss_l33 = q.life_time; t.ss_p33 = t.ssb; }; t.ssa == 34 ? { t.ss_x34 = t.ssx; t.ss_y34 = t.ssy; t.ss_z34 = t.ssz; t.ss_b34 = t.ssv; t.ss_hx34 = q.target_x_rotation; t.ss_hy34 = q.target_y_rotation; t.ss_w34 = v.tcos0 ?? 0; t.ss_k34 = q.is_sneaking; t.ss_l34 = q.life_time; t.ss_p34 = t.ssb; }; t.ssa == 35 ? { t.ss_x35 = t.ssx; t.ss_y35 = t.ssy; t.ss_z35 = t.ssz; t.ss_b35 = t.ssv; t.ss_hx35 = q.target_x_rotation; t.ss_hy35 = q.target_y_rotation; t.ss_w35 = v.tcos0 ?? 0; t.ss_k35 = q.is_sneaking; t.ss_l35 = q.life_time; t.ss_p35 = t.ssb; }; t.ssa == 36 ? { t.ss_x36 = t.ssx; t.ss_y36 = t.ssy; t.ss_z36 = t.ssz; t.ss_b36 = t.ssv; t.ss_hx36 = q.target_x_rotation; t.ss_hy36 = q.target_y_rotation; t.ss_w36 = v.tcos0 ?? 0; t.ss_k36 = q.is_sneaking; t.ss_l36 = q.life_time; t.ss_p36 = t.ssb; }; t.ssa == 37 ? { t.ss_x37 = t.ssx; t.ss_y37 = t.ssy; t.ss_z37 = t.ssz; t.ss_b37 = t.ssv; t.ss_hx37 = q.target_x_rotation; t.ss_hy37 = q.target_y_rotation; t.ss_w37 = v.tcos0 ?? 0; t.ss_k37 = q.is_sneaking; t.ss_l37 = q.life_time; t.ss_p37 = t.ssb; }; t.ssa == 38 ? { t.ss_x38 = t.ssx; t.ss_y38 = t.ssy; t.ss_z38 = t.ssz; t.ss_b38 = t.ssv; t.ss_hx38 = q.target_x_rotation; t.ss_hy38 = q.target_y_rotation; t.ss_w38 = v.tcos0 ?? 0; t.ss_k38 = q.is_sneaking; t.ss_l38 = q.life_time; t.ss_p38 = t.ssb; }; t.ssa == 39 ? { t.ss_x39 = t.ssx; t.ss_y39 = t.ssy; t.ss_z39 = t.ssz; t.ss_b39 = t.ssv; t.ss_hx39 = q.target_x_rotation; t.ss_hy39 = q.target_y_rotation; t.ss_w39 = v.tcos0 ?? 0; t.ss_k39 = q.is_sneaking; t.ss_l39 = q.life_time; t.ss_p39 = t.ssb; }; t.ssa == 40 ? { t.ss_x40 = t.ssx; t.ss_y40 = t.ssy; t.ss_z40 = t.ssz; t.ss_b40 = t.ssv; t.ss_hx40 = q.target_x_rotation; t.ss_hy40 = q.target_y_rotation; t.ss_w40 = v.tcos0 ?? 0; t.ss_k40 = q.is_sneaking; t.ss_l40 = q.life_time; t.ss_p40 = t.ssb; }; }; (t.ssa >= 41 && t.ssa <= 50) ? { t.ssa == 41 ? { t.ss_x41 = t.ssx; t.ss_y41 = t.ssy; t.ss_z41 = t.ssz; t.ss_b41 = t.ssv; t.ss_hx41 = q.target_x_rotation; t.ss_hy41 = q.target_y_rotation; t.ss_w41 = v.tcos0 ?? 0; t.ss_k41 = q.is_sneaking; t.ss_l41 = q.life_time; t.ss_p41 = t.ssb; }; t.ssa == 42 ? { t.ss_x42 = t.ssx; t.ss_y42 = t.ssy; t.ss_z42 = t.ssz; t.ss_b42 = t.ssv; t.ss_hx42 = q.target_x_rotation; t.ss_hy42 = q.target_y_rotation; t.ss_w42 = v.tcos0 ?? 0; t.ss_k42 = q.is_sneaking; t.ss_l42 = q.life_time; t.ss_p42 = t.ssb; }; t.ssa == 43 ? { t.ss_x43 = t.ssx; t.ss_y43 = t.ssy; t.ss_z43 = t.ssz; t.ss_b43 = t.ssv; t.ss_hx43 = q.target_x_rotation; t.ss_hy43 = q.target_y_rotation; t.ss_w43 = v.tcos0 ?? 0; t.ss_k43 = q.is_sneaking; t.ss_l43 = q.life_time; t.ss_p43 = t.ssb; }; t.ssa == 44 ? { t.ss_x44 = t.ssx; t.ss_y44 = t.ssy; t.ss_z44 = t.ssz; t.ss_b44 = t.ssv; t.ss_hx44 = q.target_x_rotation; t.ss_hy44 = q.target_y_rotation; t.ss_w44 = v.tcos0 ?? 0; t.ss_k44 = q.is_sneaking; t.ss_l44 = q.life_time; t.ss_p44 = t.ssb; }; t.ssa == 45 ? { t.ss_x45 = t.ssx; t.ss_y45 = t.ssy; t.ss_z45 = t.ssz; t.ss_b45 = t.ssv; t.ss_hx45 = q.target_x_rotation; t.ss_hy45 = q.target_y_rotation; t.ss_w45 = v.tcos0 ?? 0; t.ss_k45 = q.is_sneaking; t.ss_l45 = q.life_time; t.ss_p45 = t.ssb; }; t.ssa == 46 ? { t.ss_x46 = t.ssx; t.ss_y46 = t.ssy; t.ss_z46 = t.ssz; t.ss_b46 = t.ssv; t.ss_hx46 = q.target_x_rotation; t.ss_hy46 = q.target_y_rotation; t.ss_w46 = v.tcos0 ?? 0; t.ss_k46 = q.is_sneaking; t.ss_l46 = q.life_time; t.ss_p46 = t.ssb; }; t.ssa == 47 ? { t.ss_x47 = t.ssx; t.ss_y47 = t.ssy; t.ss_z47 = t.ssz; t.ss_b47 = t.ssv; t.ss_hx47 = q.target_x_rotation; t.ss_hy47 = q.target_y_rotation; t.ss_w47 = v.tcos0 ?? 0; t.ss_k47 = q.is_sneaking; t.ss_l47 = q.life_time; t.ss_p47 = t.ssb; }; t.ssa == 48 ? { t.ss_x48 = t.ssx; t.ss_y48 = t.ssy; t.ss_z48 = t.ssz; t.ss_b48 = t.ssv; t.ss_hx48 = q.target_x_rotation; t.ss_hy48 = q.target_y_rotation; t.ss_w48 = v.tcos0 ?? 0; t.ss_k48 = q.is_sneaking; t.ss_l48 = q.life_time; t.ss_p48 = t.ssb; }; t.ssa == 49 ? { t.ss_x49 = t.ssx; t.ss_y49 = t.ssy; t.ss_z49 = t.ssz; t.ss_b49 = t.ssv; t.ss_hx49 = q.target_x_rotation; t.ss_hy49 = q.target_y_rotation; t.ss_w49 = v.tcos0 ?? 0; t.ss_k49 = q.is_sneaking; t.ss_l49 = q.life_time; t.ss_p49 = t.ssb; }; t.ssa == 50 ? { t.ss_x50 = t.ssx; t.ss_y50 = t.ssy; t.ss_z50 = t.ssz; t.ss_b50 = t.ssv; t.ss_hx50 = q.target_x_rotation; t.ss_hy50 = q.target_y_rotation; t.ss_w50 = v.tcos0 ?? 0; t.ss_k50 = q.is_sneaking; t.ss_l50 = q.life_time; t.ss_p50 = t.ssb; }; }; (t.ssa >= 51 && t.ssa <= 60) ? { t.ssa == 51 ? { t.ss_x51 = t.ssx; t.ss_y51 = t.ssy; t.ss_z51 = t.ssz; t.ss_b51 = t.ssv; t.ss_hx51 = q.target_x_rotation; t.ss_hy51 = q.target_y_rotation; t.ss_w51 = v.tcos0 ?? 0; t.ss_k51 = q.is_sneaking; t.ss_l51 = q.life_time; t.ss_p51 = t.ssb; }; t.ssa == 52 ? { t.ss_x52 = t.ssx; t.ss_y52 = t.ssy; t.ss_z52 = t.ssz; t.ss_b52 = t.ssv; t.ss_hx52 = q.target_x_rotation; t.ss_hy52 = q.target_y_rotation; t.ss_w52 = v.tcos0 ?? 0; t.ss_k52 = q.is_sneaking; t.ss_l52 = q.life_time; t.ss_p52 = t.ssb; }; t.ssa == 53 ? { t.ss_x53 = t.ssx; t.ss_y53 = t.ssy; t.ss_z53 = t.ssz; t.ss_b53 = t.ssv; t.ss_hx53 = q.target_x_rotation; t.ss_hy53 = q.target_y_rotation; t.ss_w53 = v.tcos0 ?? 0; t.ss_k53 = q.is_sneaking; t.ss_l53 = q.life_time; t.ss_p53 = t.ssb; }; t.ssa == 54 ? { t.ss_x54 = t.ssx; t.ss_y54 = t.ssy; t.ss_z54 = t.ssz; t.ss_b54 = t.ssv; t.ss_hx54 = q.target_x_rotation; t.ss_hy54 = q.target_y_rotation; t.ss_w54 = v.tcos0 ?? 0; t.ss_k54 = q.is_sneaking; t.ss_l54 = q.life_time; t.ss_p54 = t.ssb; }; t.ssa == 55 ? { t.ss_x55 = t.ssx; t.ss_y55 = t.ssy; t.ss_z55 = t.ssz; t.ss_b55 = t.ssv; t.ss_hx55 = q.target_x_rotation; t.ss_hy55 = q.target_y_rotation; t.ss_w55 = v.tcos0 ?? 0; t.ss_k55 = q.is_sneaking; t.ss_l55 = q.life_time; t.ss_p55 = t.ssb; }; t.ssa == 56 ? { t.ss_x56 = t.ssx; t.ss_y56 = t.ssy; t.ss_z56 = t.ssz; t.ss_b56 = t.ssv; t.ss_hx56 = q.target_x_rotation; t.ss_hy56 = q.target_y_rotation; t.ss_w56 = v.tcos0 ?? 0; t.ss_k56 = q.is_sneaking; t.ss_l56 = q.life_time; t.ss_p56 = t.ssb; }; t.ssa == 57 ? { t.ss_x57 = t.ssx; t.ss_y57 = t.ssy; t.ss_z57 = t.ssz; t.ss_b57 = t.ssv; t.ss_hx57 = q.target_x_rotation; t.ss_hy57 = q.target_y_rotation; t.ss_w57 = v.tcos0 ?? 0; t.ss_k57 = q.is_sneaking; t.ss_l57 = q.life_time; t.ss_p57 = t.ssb; }; t.ssa == 58 ? { t.ss_x58 = t.ssx; t.ss_y58 = t.ssy; t.ss_z58 = t.ssz; t.ss_b58 = t.ssv; t.ss_hx58 = q.target_x_rotation; t.ss_hy58 = q.target_y_rotation; t.ss_w58 = v.tcos0 ?? 0; t.ss_k58 = q.is_sneaking; t.ss_l58 = q.life_time; t.ss_p58 = t.ssb; }; t.ssa == 59 ? { t.ss_x59 = t.ssx; t.ss_y59 = t.ssy; t.ss_z59 = t.ssz; t.ss_b59 = t.ssv; t.ss_hx59 = q.target_x_rotation; t.ss_hy59 = q.target_y_rotation; t.ss_w59 = v.tcos0 ?? 0; t.ss_k59 = q.is_sneaking; t.ss_l59 = q.life_time; t.ss_p59 = t.ssb; }; t.ssa == 60 ? { t.ss_x60 = t.ssx; t.ss_y60 = t.ssy; t.ss_z60 = t.ssz; t.ss_b60 = t.ssv; t.ss_hx60 = q.target_x_rotation; t.ss_hy60 = q.target_y_rotation; t.ss_w60 = v.tcos0 ?? 0; t.ss_k60 = q.is_sneaking; t.ss_l60 = q.life_time; t.ss_p60 = t.ssb; }; }; (t.ssa >= 61 && t.ssa <= 70) ? { t.ssa == 61 ? { t.ss_x61 = t.ssx; t.ss_y61 = t.ssy; t.ss_z61 = t.ssz; t.ss_b61 = t.ssv; t.ss_hx61 = q.target_x_rotation; t.ss_hy61 = q.target_y_rotation; t.ss_w61 = v.tcos0 ?? 0; t.ss_k61 = q.is_sneaking; t.ss_l61 = q.life_time; t.ss_p61 = t.ssb; }; t.ssa == 62 ? { t.ss_x62 = t.ssx; t.ss_y62 = t.ssy; t.ss_z62 = t.ssz; t.ss_b62 = t.ssv; t.ss_hx62 = q.target_x_rotation; t.ss_hy62 = q.target_y_rotation; t.ss_w62 = v.tcos0 ?? 0; t.ss_k62 = q.is_sneaking; t.ss_l62 = q.life_time; t.ss_p62 = t.ssb; }; t.ssa == 63 ? { t.ss_x63 = t.ssx; t.ss_y63 = t.ssy; t.ss_z63 = t.ssz; t.ss_b63 = t.ssv; t.ss_hx63 = q.target_x_rotation; t.ss_hy63 = q.target_y_rotation; t.ss_w63 = v.tcos0 ?? 0; t.ss_k63 = q.is_sneaking; t.ss_l63 = q.life_time; t.ss_p63 = t.ssb; }; t.ssa == 64 ? { t.ss_x64 = t.ssx; t.ss_y64 = t.ssy; t.ss_z64 = t.ssz; t.ss_b64 = t.ssv; t.ss_hx64 = q.target_x_rotation; t.ss_hy64 = q.target_y_rotation; t.ss_w64 = v.tcos0 ?? 0; t.ss_k64 = q.is_sneaking; t.ss_l64 = q.life_time; t.ss_p64 = t.ssb; }; t.ssa == 65 ? { t.ss_x65 = t.ssx; t.ss_y65 = t.ssy; t.ss_z65 = t.ssz; t.ss_b65 = t.ssv; t.ss_hx65 = q.target_x_rotation; t.ss_hy65 = q.target_y_rotation; t.ss_w65 = v.tcos0 ?? 0; t.ss_k65 = q.is_sneaking; t.ss_l65 = q.life_time; t.ss_p65 = t.ssb; }; t.ssa == 66 ? { t.ss_x66 = t.ssx; t.ss_y66 = t.ssy; t.ss_z66 = t.ssz; t.ss_b66 = t.ssv; t.ss_hx66 = q.target_x_rotation; t.ss_hy66 = q.target_y_rotation; t.ss_w66 = v.tcos0 ?? 0; t.ss_k66 = q.is_sneaking; t.ss_l66 = q.life_time; t.ss_p66 = t.ssb; }; t.ssa == 67 ? { t.ss_x67 = t.ssx; t.ss_y67 = t.ssy; t.ss_z67 = t.ssz; t.ss_b67 = t.ssv; t.ss_hx67 = q.target_x_rotation; t.ss_hy67 = q.target_y_rotation; t.ss_w67 = v.tcos0 ?? 0; t.ss_k67 = q.is_sneaking; t.ss_l67 = q.life_time; t.ss_p67 = t.ssb; }; t.ssa == 68 ? { t.ss_x68 = t.ssx; t.ss_y68 = t.ssy; t.ss_z68 = t.ssz; t.ss_b68 = t.ssv; t.ss_hx68 = q.target_x_rotation; t.ss_hy68 = q.target_y_rotation; t.ss_w68 = v.tcos0 ?? 0; t.ss_k68 = q.is_sneaking; t.ss_l68 = q.life_time; t.ss_p68 = t.ssb; }; t.ssa == 69 ? { t.ss_x69 = t.ssx; t.ss_y69 = t.ssy; t.ss_z69 = t.ssz; t.ss_b69 = t.ssv; t.ss_hx69 = q.target_x_rotation; t.ss_hy69 = q.target_y_rotation; t.ss_w69 = v.tcos0 ?? 0; t.ss_k69 = q.is_sneaking; t.ss_l69 = q.life_time; t.ss_p69 = t.ssb; }; t.ssa == 70 ? { t.ss_x70 = t.ssx; t.ss_y70 = t.ssy; t.ss_z70 = t.ssz; t.ss_b70 = t.ssv; t.ss_hx70 = q.target_x_rotation; t.ss_hy70 = q.target_y_rotation; t.ss_w70 = v.tcos0 ?? 0; t.ss_k70 = q.is_sneaking; t.ss_l70 = q.life_time; t.ss_p70 = t.ssb; }; }; (t.ssa >= 71 && t.ssa <= 80) ? { t.ssa == 71 ? { t.ss_x71 = t.ssx; t.ss_y71 = t.ssy; t.ss_z71 = t.ssz; t.ss_b71 = t.ssv; t.ss_hx71 = q.target_x_rotation; t.ss_hy71 = q.target_y_rotation; t.ss_w71 = v.tcos0 ?? 0; t.ss_k71 = q.is_sneaking; t.ss_l71 = q.life_time; t.ss_p71 = t.ssb; }; t.ssa == 72 ? { t.ss_x72 = t.ssx; t.ss_y72 = t.ssy; t.ss_z72 = t.ssz; t.ss_b72 = t.ssv; t.ss_hx72 = q.target_x_rotation; t.ss_hy72 = q.target_y_rotation; t.ss_w72 = v.tcos0 ?? 0; t.ss_k72 = q.is_sneaking; t.ss_l72 = q.life_time; t.ss_p72 = t.ssb; }; t.ssa == 73 ? { t.ss_x73 = t.ssx; t.ss_y73 = t.ssy; t.ss_z73 = t.ssz; t.ss_b73 = t.ssv; t.ss_hx73 = q.target_x_rotation; t.ss_hy73 = q.target_y_rotation; t.ss_w73 = v.tcos0 ?? 0; t.ss_k73 = q.is_sneaking; t.ss_l73 = q.life_time; t.ss_p73 = t.ssb; }; t.ssa == 74 ? { t.ss_x74 = t.ssx; t.ss_y74 = t.ssy; t.ss_z74 = t.ssz; t.ss_b74 = t.ssv; t.ss_hx74 = q.target_x_rotation; t.ss_hy74 = q.target_y_rotation; t.ss_w74 = v.tcos0 ?? 0; t.ss_k74 = q.is_sneaking; t.ss_l74 = q.life_time; t.ss_p74 = t.ssb; }; t.ssa == 75 ? { t.ss_x75 = t.ssx; t.ss_y75 = t.ssy; t.ss_z75 = t.ssz; t.ss_b75 = t.ssv; t.ss_hx75 = q.target_x_rotation; t.ss_hy75 = q.target_y_rotation; t.ss_w75 = v.tcos0 ?? 0; t.ss_k75 = q.is_sneaking; t.ss_l75 = q.life_time; t.ss_p75 = t.ssb; }; t.ssa == 76 ? { t.ss_x76 = t.ssx; t.ss_y76 = t.ssy; t.ss_z76 = t.ssz; t.ss_b76 = t.ssv; t.ss_hx76 = q.target_x_rotation; t.ss_hy76 = q.target_y_rotation; t.ss_w76 = v.tcos0 ?? 0; t.ss_k76 = q.is_sneaking; t.ss_l76 = q.life_time; t.ss_p76 = t.ssb; }; t.ssa == 77 ? { t.ss_x77 = t.ssx; t.ss_y77 = t.ssy; t.ss_z77 = t.ssz; t.ss_b77 = t.ssv; t.ss_hx77 = q.target_x_rotation; t.ss_hy77 = q.target_y_rotation; t.ss_w77 = v.tcos0 ?? 0; t.ss_k77 = q.is_sneaking; t.ss_l77 = q.life_time; t.ss_p77 = t.ssb; }; t.ssa == 78 ? { t.ss_x78 = t.ssx; t.ss_y78 = t.ssy; t.ss_z78 = t.ssz; t.ss_b78 = t.ssv; t.ss_hx78 = q.target_x_rotation; t.ss_hy78 = q.target_y_rotation; t.ss_w78 = v.tcos0 ?? 0; t.ss_k78 = q.is_sneaking; t.ss_l78 = q.life_time; t.ss_p78 = t.ssb; }; t.ssa == 79 ? { t.ss_x79 = t.ssx; t.ss_y79 = t.ssy; t.ss_z79 = t.ssz; t.ss_b79 = t.ssv; t.ss_hx79 = q.target_x_rotation; t.ss_hy79 = q.target_y_rotation; t.ss_w79 = v.tcos0 ?? 0; t.ss_k79 = q.is_sneaking; t.ss_l79 = q.life_time; t.ss_p79 = t.ssb; }; t.ssa == 80 ? { t.ss_x80 = t.ssx; t.ss_y80 = t.ssy; t.ss_z80 = t.ssz; t.ss_b80 = t.ssv; t.ss_hx80 = q.target_x_rotation; t.ss_hy80 = q.target_y_rotation; t.ss_w80 = v.tcos0 ?? 0; t.ss_k80 = q.is_sneaking; t.ss_l80 = q.life_time; t.ss_p80 = t.ssb; }; }; (t.ssa >= 81 && t.ssa <= 90) ? { t.ssa == 81 ? { t.ss_x81 = t.ssx; t.ss_y81 = t.ssy; t.ss_z81 = t.ssz; t.ss_b81 = t.ssv; t.ss_hx81 = q.target_x_rotation; t.ss_hy81 = q.target_y_rotation; t.ss_w81 = v.tcos0 ?? 0; t.ss_k81 = q.is_sneaking; t.ss_l81 = q.life_time; t.ss_p81 = t.ssb; }; t.ssa == 82 ? { t.ss_x82 = t.ssx; t.ss_y82 = t.ssy; t.ss_z82 = t.ssz; t.ss_b82 = t.ssv; t.ss_hx82 = q.target_x_rotation; t.ss_hy82 = q.target_y_rotation; t.ss_w82 = v.tcos0 ?? 0; t.ss_k82 = q.is_sneaking; t.ss_l82 = q.life_time; t.ss_p82 = t.ssb; }; t.ssa == 83 ? { t.ss_x83 = t.ssx; t.ss_y83 = t.ssy; t.ss_z83 = t.ssz; t.ss_b83 = t.ssv; t.ss_hx83 = q.target_x_rotation; t.ss_hy83 = q.target_y_rotation; t.ss_w83 = v.tcos0 ?? 0; t.ss_k83 = q.is_sneaking; t.ss_l83 = q.life_time; t.ss_p83 = t.ssb; }; t.ssa == 84 ? { t.ss_x84 = t.ssx; t.ss_y84 = t.ssy; t.ss_z84 = t.ssz; t.ss_b84 = t.ssv; t.ss_hx84 = q.target_x_rotation; t.ss_hy84 = q.target_y_rotation; t.ss_w84 = v.tcos0 ?? 0; t.ss_k84 = q.is_sneaking; t.ss_l84 = q.life_time; t.ss_p84 = t.ssb; }; t.ssa == 85 ? { t.ss_x85 = t.ssx; t.ss_y85 = t.ssy; t.ss_z85 = t.ssz; t.ss_b85 = t.ssv; t.ss_hx85 = q.target_x_rotation; t.ss_hy85 = q.target_y_rotation; t.ss_w85 = v.tcos0 ?? 0; t.ss_k85 = q.is_sneaking; t.ss_l85 = q.life_time; t.ss_p85 = t.ssb; }; t.ssa == 86 ? { t.ss_x86 = t.ssx; t.ss_y86 = t.ssy; t.ss_z86 = t.ssz; t.ss_b86 = t.ssv; t.ss_hx86 = q.target_x_rotation; t.ss_hy86 = q.target_y_rotation; t.ss_w86 = v.tcos0 ?? 0; t.ss_k86 = q.is_sneaking; t.ss_l86 = q.life_time; t.ss_p86 = t.ssb; }; t.ssa == 87 ? { t.ss_x87 = t.ssx; t.ss_y87 = t.ssy; t.ss_z87 = t.ssz; t.ss_b87 = t.ssv; t.ss_hx87 = q.target_x_rotation; t.ss_hy87 = q.target_y_rotation; t.ss_w87 = v.tcos0 ?? 0; t.ss_k87 = q.is_sneaking; t.ss_l87 = q.life_time; t.ss_p87 = t.ssb; }; t.ssa == 88 ? { t.ss_x88 = t.ssx; t.ss_y88 = t.ssy; t.ss_z88 = t.ssz; t.ss_b88 = t.ssv; t.ss_hx88 = q.target_x_rotation; t.ss_hy88 = q.target_y_rotation; t.ss_w88 = v.tcos0 ?? 0; t.ss_k88 = q.is_sneaking; t.ss_l88 = q.life_time; t.ss_p88 = t.ssb; }; t.ssa == 89 ? { t.ss_x89 = t.ssx; t.ss_y89 = t.ssy; t.ss_z89 = t.ssz; t.ss_b89 = t.ssv; t.ss_hx89 = q.target_x_rotation; t.ss_hy89 = q.target_y_rotation; t.ss_w89 = v.tcos0 ?? 0; t.ss_k89 = q.is_sneaking; t.ss_l89 = q.life_time; t.ss_p89 = t.ssb; }; t.ssa == 90 ? { t.ss_x90 = t.ssx; t.ss_y90 = t.ssy; t.ss_z90 = t.ssz; t.ss_b90 = t.ssv; t.ss_hx90 = q.target_x_rotation; t.ss_hy90 = q.target_y_rotation; t.ss_w90 = v.tcos0 ?? 0; t.ss_k90 = q.is_sneaking; t.ss_l90 = q.life_time; t.ss_p90 = t.ssb; }; }; (t.ssa >= 91 && t.ssa <= 100) ? { t.ssa == 91 ? { t.ss_x91 = t.ssx; t.ss_y91 = t.ssy; t.ss_z91 = t.ssz; t.ss_b91 = t.ssv; t.ss_hx91 = q.target_x_rotation; t.ss_hy91 = q.target_y_rotation; t.ss_w91 = v.tcos0 ?? 0; t.ss_k91 = q.is_sneaking; t.ss_l91 = q.life_time; t.ss_p91 = t.ssb; }; t.ssa == 92 ? { t.ss_x92 = t.ssx; t.ss_y92 = t.ssy; t.ss_z92 = t.ssz; t.ss_b92 = t.ssv; t.ss_hx92 = q.target_x_rotation; t.ss_hy92 = q.target_y_rotation; t.ss_w92 = v.tcos0 ?? 0; t.ss_k92 = q.is_sneaking; t.ss_l92 = q.life_time; t.ss_p92 = t.ssb; }; t.ssa == 93 ? { t.ss_x93 = t.ssx; t.ss_y93 = t.ssy; t.ss_z93 = t.ssz; t.ss_b93 = t.ssv; t.ss_hx93 = q.target_x_rotation; t.ss_hy93 = q.target_y_rotation; t.ss_w93 = v.tcos0 ?? 0; t.ss_k93 = q.is_sneaking; t.ss_l93 = q.life_time; t.ss_p93 = t.ssb; }; t.ssa == 94 ? { t.ss_x94 = t.ssx; t.ss_y94 = t.ssy; t.ss_z94 = t.ssz; t.ss_b94 = t.ssv; t.ss_hx94 = q.target_x_rotation; t.ss_hy94 = q.target_y_rotation; t.ss_w94 = v.tcos0 ?? 0; t.ss_k94 = q.is_sneaking; t.ss_l94 = q.life_time; t.ss_p94 = t.ssb; }; t.ssa == 95 ? { t.ss_x95 = t.ssx; t.ss_y95 = t.ssy; t.ss_z95 = t.ssz; t.ss_b95 = t.ssv; t.ss_hx95 = q.target_x_rotation; t.ss_hy95 = q.target_y_rotation; t.ss_w95 = v.tcos0 ?? 0; t.ss_k95 = q.is_sneaking; t.ss_l95 = q.life_time; t.ss_p95 = t.ssb; }; t.ssa == 96 ? { t.ss_x96 = t.ssx; t.ss_y96 = t.ssy; t.ss_z96 = t.ssz; t.ss_b96 = t.ssv; t.ss_hx96 = q.target_x_rotation; t.ss_hy96 = q.target_y_rotation; t.ss_w96 = v.tcos0 ?? 0; t.ss_k96 = q.is_sneaking; t.ss_l96 = q.life_time; t.ss_p96 = t.ssb; }; t.ssa == 97 ? { t.ss_x97 = t.ssx; t.ss_y97 = t.ssy; t.ss_z97 = t.ssz; t.ss_b97 = t.ssv; t.ss_hx97 = q.target_x_rotation; t.ss_hy97 = q.target_y_rotation; t.ss_w97 = v.tcos0 ?? 0; t.ss_k97 = q.is_sneaking; t.ss_l97 = q.life_time; t.ss_p97 = t.ssb; }; t.ssa == 98 ? { t.ss_x98 = t.ssx; t.ss_y98 = t.ssy; t.ss_z98 = t.ssz; t.ss_b98 = t.ssv; t.ss_hx98 = q.target_x_rotation; t.ss_hy98 = q.target_y_rotation; t.ss_w98 = v.tcos0 ?? 0; t.ss_k98 = q.is_sneaking; t.ss_l98 = q.life_time; t.ss_p98 = t.ssb; }; t.ssa == 99 ? { t.ss_x99 = t.ssx; t.ss_y99 = t.ssy; t.ss_z99 = t.ssz; t.ss_b99 = t.ssv; t.ss_hx99 = q.target_x_rotation; t.ss_hy99 = q.target_y_rotation; t.ss_w99 = v.tcos0 ?? 0; t.ss_k99 = q.is_sneaking; t.ss_l99 = q.life_time; t.ss_p99 = t.ssb; }; t.ssa == 100 ? { t.ss_x100 = t.ssx; t.ss_y100 = t.ssy; t.ss_z100 = t.ssz; t.ss_b100 = t.ssv; t.ss_hx100 = q.target_x_rotation; t.ss_hy100 = q.target_y_rotation; t.ss_w100 = v.tcos0 ?? 0; t.ss_k100 = q.is_sneaking; t.ss_l100 = q.life_time; t.ss_p100 = t.ssb; }; }; };"
+        ],
+        "animate": [
+          "root",
+          "ss_probe",
+          {
+            "ss_screen": "v.ss_hud"
+          },
+          {
+            "ss_pose": "v.ss_hud"
+          }
+        ],
+        "variables": {
+          "variable.fp_melee_spear_use_attachable_rotation_z": "public",
+          "variable.tp_melee_spear_use_attachable_rotation_z": "public",
+          "variable.fp_melee_spear_attack_attachable_rotation_z": "public",
+          "variable.tp_melee_spear_attack_attachable_position_z": "public",
+          "variable.attack_time": "public",
+          "variable.item_use_normalized": "public"
+        },
+        "should_update_effects_offscreen": "1.0",
+        "should_update_bones_and_effects_offscreen": "1.0"
+      },
+      "animations": {
+        "root": "controller.animation.player.root",
+        "base_controller": "controller.animation.player.base",
+        "hudplayer": "controller.animation.player.hudplayer",
+        "humanoid_base_pose": "animation.humanoid.base_pose",
+        "look_at_target": "controller.animation.humanoid.look_at_target",
+        "look_at_target_ui": "animation.player.look_at_target.ui",
+        "look_at_target_default": "animation.humanoid.look_at_target.default",
+        "look_at_target_gliding": "animation.humanoid.look_at_target.gliding",
+        "look_at_target_swimming": "animation.humanoid.look_at_target.swimming",
+        "look_at_target_inverted": "animation.player.look_at_target.inverted",
+        "cape": "animation.player.cape",
+        "move.arms": "animation.player.move.arms",
+        "move.legs": "animation.player.move.legs",
+        "swimming": "animation.player.swim",
+        "swimming.legs": "animation.player.swim.legs",
+        "riding.arms": "animation.player.riding.arms",
+        "riding.legs": "animation.player.riding.legs",
+        "holding": "animation.player.holding",
+        "brandish_spear": "animation.humanoid.brandish_spear",
+        "charging": "animation.humanoid.charging",
+        "attack.positions": "animation.player.attack.positions",
+        "attack.rotations": "animation.player.attack.rotations",
+        "sneaking": "animation.player.sneaking",
+        "bob": "animation.player.bob",
+        "damage_nearby_mobs": "animation.humanoid.damage_nearby_mobs",
+        "bow_and_arrow": "animation.humanoid.bow_and_arrow",
+        "use_item_progress": "animation.humanoid.use_item_progress",
+        "skeleton_attack": "animation.skeleton.attack",
+        "sleeping": "animation.player.sleeping",
+        "first_person_base_pose": "animation.player.first_person.base_pose",
+        "first_person_empty_hand": "animation.player.first_person.empty_hand",
+        "first_person_swap_item": "animation.player.first_person.swap_item",
+        "first_person_attack_controller": "controller.animation.player.first_person_attack",
+        "first_person_attack_rotation": "animation.player.first_person.attack_rotation",
+        "first_person_attack_rotation_item": "animation.player.first_person.attack_rotation_item",
+        "first_person_vr_attack_rotation": "animation.player.first_person.vr_attack_rotation",
+        "first_person_walk": "animation.player.first_person.walk",
+        "first_person_map_controller": "controller.animation.player.first_person_map",
+        "first_person_map_hold": "animation.player.first_person.map_hold",
+        "first_person_map_hold_attack": "animation.player.first_person.map_hold_attack",
+        "first_person_map_hold_off_hand": "animation.player.first_person.map_hold_off_hand",
+        "first_person_map_hold_main_hand": "animation.player.first_person.map_hold_main_hand",
+        "first_person_crossbow_equipped": "animation.player.first_person.crossbow_equipped",
+        "first_person_crossbow_hold": "animation.player.first_person.crossbow_hold",
+        "first_person_breathing_bob": "animation.player.first_person.breathing_bob",
+        "third_person_crossbow_equipped": "animation.player.crossbow_equipped",
+        "third_person_bow_equipped": "animation.player.bow_equipped",
+        "crossbow_hold": "animation.player.crossbow_hold",
+        "crossbow_controller": "controller.animation.player.crossbow",
+        "shield_block_main_hand": "animation.player.shield_block_main_hand",
+        "shield_block_off_hand": "animation.player.shield_block_off_hand",
+        "blink": "controller.animation.persona.blink",
+        "fishing_rod": "animation.humanoid.fishing_rod",
+        "holding_spyglass": "animation.humanoid.holding_spyglass",
+        "first_person_shield_block": "animation.player.first_person.shield_block",
+        "tooting_goat_horn": "animation.humanoid.tooting_goat_horn",
+        "holding_brush": "animation.humanoid.holding_brush",
+        "brushing": "animation.humanoid.brushing",
+        "crawling": "animation.player.crawl",
+        "crawling.legs": "animation.player.crawl.legs",
+        "swimming.no_right_arm": "animation.player.swim.no_right_arm",
+        "crawling.no_right_arm": "animation.player.crawl.no_right_arm",
+        "riding.root": "animation.player.riding.root",
+        "holding_heavy_core": "animation.player.holding_heavy_core",
+        "first_person_melee_spear_use": "animation.player.first_person.melee_spear_use",
+        "first_person_melee_spear_hold": "animation.player.first_person.melee_spear_hold",
+        "first_person_melee_spear_attack": "animation.player.first_person.melee_spear_attack",
+        "first_person_melee_spear_controller": "controller.animation.player.first_person_melee_spear",
+        "third_person_melee_spear_use": "animation.humanoid.melee_spear_use",
+        "third_person_melee_spear_hold": "animation.humanoid.melee_spear_hold",
+        "third_person_melee_spear_attack": "animation.player.melee_spear_attack",
+        "third_person_melee_spear_controller": "controller.animation.player.melee_spear",
+        "ss_probe": "animation.skin_studio.probe",
+        "ss_screen": "animation.skin_studio.screen",
+        "ss_pose": "animation.skin_studio.podium"
+      },
+      "render_controllers": [
+        {
+          "controller.render.player.first_person_spectator": "variable.is_first_person && query.is_spectator"
+        },
+        {
+          "controller.render.player.third_person_spectator": "!variable.is_first_person && !variable.map_face_icon && query.is_spectator"
+        },
+        {
+          "controller.render.player.first_person": "variable.is_first_person && !query.is_spectator"
+        },
+        {
+          "controller.render.player.third_person": "!variable.is_first_person && !variable.map_face_icon && !query.is_spectator"
+        },
+        {
+          "controller.render.player.map": "variable.map_face_icon"
+        },
+        {
+          "controller.render.skin_studio.publish": "1.0"
+        },
+        {
+          "controller.render.skin_studio.screen_card": "q.is_in_ui && v.ss_hud"
+        },
+        {
+          "controller.render.skin_studio.screen_podium": "q.is_in_ui && v.ss_hud"
+        },
+        {
+          "controller.render.skin_studio.screen_figure1": "q.is_in_ui && v.ss_hud"
+        },
+        {
+          "controller.render.skin_studio.screen_figure2": "q.is_in_ui && v.ss_hud"
+        },
+        {
+          "controller.render.skin_studio.screen_figure3": "q.is_in_ui && v.ss_hud"
+        },
+        {
+          "controller.render.skin_studio.screen_trophy": "q.is_in_ui && v.ss_hud"
+        }
+      ],
+      "enable_attachables": true
+    }
+  }
+}

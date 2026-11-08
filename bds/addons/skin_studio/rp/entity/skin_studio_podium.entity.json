@@ -1,0 +1,52 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "skin_studio:podium",
+      "materials": {
+        "default": "entity_emissive_alpha",
+        "skin": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/skin_studio/podium",
+        "trophy": "textures/entity/skin_studio/trophy",
+        "gold": "textures/entity/skin_studio/statue_gold",
+        "silver": "textures/entity/skin_studio/statue_silver",
+        "bronze": "textures/entity/skin_studio/statue_bronze"
+      },
+      "geometry": {
+        "default": "geometry.skin_podium",
+        "trophy_w": "geometry.skin_studio.trophy",
+        "trophy_s": "geometry.skin_studio.trophy_slim",
+        "f1w": "geometry.skin_studio.figure1",
+        "f1s": "geometry.skin_studio.figure1_slim",
+        "f2w": "geometry.skin_studio.figure2",
+        "f2s": "geometry.skin_studio.figure2_slim",
+        "f3w": "geometry.skin_studio.figure3",
+        "f3s": "geometry.skin_studio.figure3_slim"
+      },
+      "scripts": {
+        "pre_animation": [
+          "v.ss_clock = (math.mod(q.time_stamp, 72000) + q.frame_alpha) / 20;"
+        ],
+        "animate": [
+          "pose"
+        ]
+      },
+      "animations": {
+        "pose": "animation.skin_studio.podium"
+      },
+      "render_controllers": [
+        "controller.render.skin_studio.podium",
+        "controller.render.skin_studio.figure1",
+        "controller.render.skin_studio.figure2",
+        "controller.render.skin_studio.figure3",
+        "controller.render.skin_studio.trophy"
+      ],
+      "spawn_egg": {
+        "base_color": "#E8E6E0",
+        "overlay_color": "#ECBA34"
+      }
+    }
+  }
+}

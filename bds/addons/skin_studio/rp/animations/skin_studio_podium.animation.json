@@ -1,0 +1,89 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.skin_studio.podium": {
+      "loop": true,
+      "bones": {
+        "f1": {
+          "scale": 0.9375
+        },
+        "f2": {
+          "scale": 0.9375
+        },
+        "f3": {
+          "scale": 0.9375
+        },
+        "f1_rightArm": {
+          "rotation": [
+            0,
+            0,
+            "(155 + math.sin(v.ss_clock * 240) * 6)"
+          ]
+        },
+        "f1_leftArm": {
+          "rotation": [
+            0,
+            0,
+            "-(155 + math.sin(v.ss_clock * 240) * 6)"
+          ]
+        },
+        "f1_trophy": {
+          "rotation": [
+            0,
+            0,
+            "-(155 + math.sin(v.ss_clock * 240) * 6)"
+          ]
+        },
+        "f1_head": {
+          "rotation": [
+            -12,
+            "math.sin(v.ss_clock * 20) * 8",
+            0
+          ]
+        },
+        "f2_rightArm": {
+          "rotation": [
+            0,
+            0,
+            "140 + math.sin(v.ss_clock * 420) * 18"
+          ]
+        },
+        "f2_leftArm": {
+          "rotation": [
+            0,
+            0,
+            -6
+          ]
+        },
+        "f2_head": {
+          "rotation": [
+            0,
+            "12 + math.sin(v.ss_clock * 20 + 120) * 8",
+            0
+          ]
+        },
+        "f3_rightArm": {
+          "rotation": [
+            "math.sin(v.ss_clock * 300) * 10 - 150",
+            15,
+            15
+          ]
+        },
+        "f3_leftArm": {
+          "rotation": [
+            12,
+            0,
+            -8
+          ]
+        },
+        "f3_head": {
+          "rotation": [
+            -6,
+            "math.sin(v.ss_clock * 20 + 240) * 8",
+            0
+          ]
+        }
+      }
+    }
+  }
+}

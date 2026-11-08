@@ -1,0 +1,32 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Skin Studio | Resources",
+    "uuid": "3e671969-7ccc-5439-8506-2babdfd805f7",
+    "description": "表彰台と鏡 / podium and mirror",
+    "version": [
+      3,
+      1,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      26,
+      60
+    ]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "372aac88-18b4-5b0c-bf88-3fcda1396ecd",
+      "version": [
+        3,
+        1,
+        0
+      ]
+    }
+  ],
+  "metadata": {
+    "product_type": "addon"
+  }
+}

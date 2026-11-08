@@ -1,0 +1,153 @@
+# Skin Studio 3 on a real BDS with real clients (op, spawn 0 -60 0, flat). Everything below is done by command only;
+# the last sections use the forms once to show they still agree with the commands.
+
+## every player gets a relay slot of their own
+@A join
+@B join
+wait 1500
+js [p('A').getProperty('skin_studio:slot') > 0, p('B').getProperty('skin_studio:slot') > 0, p('A').getProperty('skin_studio:slot') !== p('B').getProperty('skin_studio:slot'), p('A').getProperty('skin_studio:gen') > 0].join(',')
+= true,true,true,true
+
+## /studio:podium puts a podium on the block centre, facing the way asked
+@A cmd /studio:podium 0 -60 6 north
+~ 表彰台を置きました
+wait 1000
+js (() => { const [pd] = world.getDimension('overworld').getEntities({ type: 'skin_studio:podium' }); return [pd.location.x, pd.location.y, pd.location.z, Math.abs(Math.round(pd.getRotation().y))].join(' '); })()
+= 0.5 -60 6.5 180
+
+## /studio:rank puts people on the steps and /studio:rank without a player empties a step
+@A cmd /studio:rank 1 A
+~ 1位に A を入れました
+@A cmd /studio:rank 2 B
+~ 2位に B を入れました
+wait 1500
+js (() => { const [pd] = world.getDimension('overworld').getEntities({ type: 'skin_studio:podium' }); return [pd.getProperty('skin_studio:s1') === p('A').getProperty('skin_studio:slot'), pd.getProperty('skin_studio:g2') === p('B').getProperty('skin_studio:gen'), pd.nameTag.replace(/§./g, '').split('\n').join('|')].join(' '); })()
+= true true 1位 A|2位 B
+@A cmd /studio:rank 2
+~ 2位を空けました
+@A cmd /studio:rank 5 B
+~ 順位は 1・2・3
+wait 1500
+js (() => { const [pd] = world.getDimension('overworld').getEntities({ type: 'skin_studio:podium' }); return [pd.getProperty('skin_studio:s2'), pd.nameTag.replace(/§./g, '')].join(' '); })()
+= 0 1位 A
+
+## a command block uses the podium next to it, execute as a podium uses that podium
+gamemode creative A
+setblock 3 -60 3 command_block
+@A cmdblock 3 -60 3 impulse always studio:rank 3 B
+wait 1500
+execute as @e[type=skin_studio:podium] run studio:rank 2 A
+wait 1500
+js (() => { const [pd] = world.getDimension('overworld').getEntities({ type: 'skin_studio:podium' }); return [pd.getProperty('skin_studio:s3') === p('B').getProperty('skin_studio:slot'), pd.getProperty('skin_studio:s2') === p('A').getProperty('skin_studio:slot')].join(' '); })()
+= true true
+setblock 3 -60 3 air
+
+## /studio:hud puts the podium on the player's own screen (GeoUI data on the player)
+@A cmd /studio:hud on
+~ 画面に表彰台を出しました（A）
+wait 1500
+js [p('A').getProperty('skin_studio:hud'), p('A').getProperty('skin_studio:h1s') === p('A').getProperty('skin_studio:slot'), p('A').getProperty('skin_studio:h1g') === p('A').getProperty('skin_studio:gen'), p('A').getProperty('skin_studio:h3s') === p('B').getProperty('skin_studio:slot'), p('B').getProperty('skin_studio:hud')].join(',')
+= true,true,true,true,false
+
+## /studio:hudsize resizes the screen podium, and the device decides where its corner is
+js [p('A').clientSystemInfo.platformType, p('A').getProperty('skin_studio:cx'), p('A').getProperty('skin_studio:cy'), p('A').getProperty('skin_studio:size')].join(' ')
+~ ^(Desktop -6 -278|Mobile -417 -526|Console -6 -278) 100$
+@A cmd /studio:hudsize 150
+~ 150%
+wait 1500
+js p('A').getProperty('skin_studio:size')
+= 150
+@A cmd /studio:hudsize 100
+@A cmd /studio:hudsize 500
+~ 30〜300
+wait 1500
+js p('A').getProperty('skin_studio:size')
+= 100
+
+## someone who is not an operator only changes their own screen
+deop B
+wait 500
+@B cmd /studio:hud off A
+~ オペレーターだけ
+@B cmd /studio:hudsize 120 A
+~ オペレーターだけ
+@B cmd /studio:hud on
+~ 画面に表彰台を出しました（B）
+@B cmd /studio:podium 0 -60 20
+!~ 表彰台を置きました
+~ (?i)unknown|permission|権限|不明
+op B
+wait 1500
+js [p('A').getProperty('skin_studio:hud'), p('B').getProperty('skin_studio:hud'), world.getDimension('overworld').getEntities({ type: 'skin_studio:podium' }).length].join(',')
+= true,true,1
+
+## /studio:mirror refuses a plain wall and fits a 3x3 window, facing the room
+fill -4 -60 12 4 -56 12 stone
+fill -1 -60 12 1 -58 12 air
+@A cmd /studio:mirror 3 -60 12 north
+~ 3×3
+@A cmd /studio:mirror 0 -60 12 north
+~ 鏡を置きました
+tp A 0.5 -60 9.5 facing 0.5 -59 12
+wait 1500
+js (() => { const [m] = world.getDimension('overworld').getEntities({ type: 'skin_studio:mirror' }); return [m.location.x, m.location.y, m.location.z, Math.abs(Math.round(m.getRotation().y)), m.getProperty('skin_studio:r1') === p('A').getProperty('skin_studio:slot')].join(' '); })()
+= 0.5 -60 12 180 true
+
+## a block in front of the mirror is drawn behind it, and no real block is placed
+give A gold_block 1
+@A place gold_block 1 -60 10
+wait 1500
+js world.getDimension('overworld').getEntities({ type: 'skin_studio:ghost' }).map((g) => [g.location.x, g.location.y, g.location.z].join(' ')).join(',')
+= 1.5 -60 13.5
+js ['1 -60 13', '0 -60 13', '1 -60 14'].map((at) => { const [x, y, z] = at.split(' ').map(Number); return world.getDimension('overworld').getBlock({ x, y, z }).typeId; }).join(',')
+= minecraft:air,minecraft:air,minecraft:air
+@A dig 1 -60 10
+wait 1500
+js world.getDimension('overworld').getEntities({ type: 'skin_studio:ghost' }).length
+= 0
+
+## an animal in front of the mirror gets a mirrored copy that follows it, and goes when it goes
+summon cow 1.5 -60 9.5
+effect @e[type=cow] slowness 30 255 true
+wait 1500
+js (() => { const d = world.getDimension('overworld'); const [r, extra] = d.getEntities({ families: ['skin_studio_reflection'] }); const [c] = d.getEntities({ type: 'minecraft:cow' }); return [r.typeId, r.location.x, r.location.y, r.location.z, extra === undefined, r.getProperty('skin_studio:slot') > 0, Math.abs(r.getProperty('skin_studio:dx') - Math.round((c.location.x - 0.5) * 1000)) < 300].join(' '); })()
+= skin_studio:m_cow 0.5 -60 12 true true true
+kill @e[type=cow]
+wait 2500
+js world.getDimension('overworld').getEntities({ families: ['skin_studio_reflection'] }).length
+= 0
+
+## the podium, the mirror and the screen podium are still there after a restart
+restart
+wait 3000
+js (() => { const d = world.getDimension('overworld'); const [pd] = d.getEntities({ type: 'skin_studio:podium' }); return [d.getEntities({ type: 'skin_studio:mirror' }).length, pd.nameTag.replace(/§./g, '').split('\n').join('|'), p('A').getProperty('skin_studio:hud'), pd.getProperty('skin_studio:s1') === p('A').getProperty('skin_studio:slot')].join(' '); })()
+= 1 1位 A|2位 A|3位 B true true
+
+## the podium form agrees with the commands
+tp A 0.5 -60 3.5 facing 0.5 -59 6.5
+@A interact skin_studio:podium
+until form 3000
+~ 表彰台
+@A form ["B", "（なし）", "A", true, false]
+wait 1500
+js (() => { const [pd] = world.getDimension('overworld').getEntities({ type: 'skin_studio:podium' }); return pd.nameTag.replace(/§./g, '').split('\n').join('|'); })()
+= 1位 B|3位 A
+
+## /studio:remove takes the nearest one away: the mirror with its ghosts, then the podium and the screen podium
+tp A 0.5 -60 11
+@A cmd /studio:remove
+~ 鏡を片付けました
+tp A 0.5 -60 4.5
+@A cmd /studio:remove
+~ 表彰台を片付けました
+wait 2500
+js (() => { const d = world.getDimension('overworld'); return [d.getEntities({ type: 'skin_studio:podium' }).length, d.getEntities({ type: 'skin_studio:mirror' }).length, d.getEntities({ type: 'skin_studio:ghost' }).length, p('A').getProperty('skin_studio:hud'), p('B').getProperty('skin_studio:hud')].join(','); })()
+= 0,0,0,false,false
+
+## the server console can do it all too
+studio:podium 10 -60 10 south
+wait 1000
+execute as @e[type=skin_studio:podium] run studio:rank 1 A
+wait 1500
+js (() => { const [pd] = world.getDimension('overworld').getEntities({ type: 'skin_studio:podium' }); return [pd.location.x, pd.location.z, Math.round(pd.getRotation().y), pd.nameTag.replace(/§./g, '')].join(' '); })()
+= 10.5 10.5 0 1位 A

@@ -1,0 +1,61 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Skin Studio | Behavior",
+    "uuid": "ee9d537b-2f19-57c0-b602-918e8477a18e",
+    "description": "表彰台と鏡 / podium and mirror",
+    "version": [
+      3,
+      1,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      26,
+      60
+    ]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "66d6f726-aee7-5d1e-b031-e78db32239d8",
+      "version": [
+        3,
+        1,
+        0
+      ]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "entry": "scripts/main.js",
+      "uuid": "b098a660-500d-5d06-a415-8df896742b3a",
+      "version": [
+        3,
+        1,
+        0
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "2.10.0"
+    },
+    {
+      "module_name": "@minecraft/server-ui",
+      "version": "2.0.0"
+    },
+    {
+      "uuid": "3e671969-7ccc-5439-8506-2babdfd805f7",
+      "version": [
+        3,
+        1,
+        0
+      ]
+    }
+  ],
+  "metadata": {
+    "product_type": "addon"
+  }
+}
